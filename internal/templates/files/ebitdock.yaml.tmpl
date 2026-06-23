@@ -1,0 +1,31 @@
+project: {{ .Name }}
+
+game:
+  package: {{ .GamePackage }}
+  output: {{ .GameOutput }}
+
+wasm:
+  exec: {{ .WASMExec }}
+
+services:
+  web:
+    root: {{ .StaticRoot }}
+    port: {{ .WebPort }}
+
+  api:
+    enabled: false
+    command: go run ./server
+    port: 3001
+
+dashboard:
+  port: {{ .DashboardPort }}
+
+watch:
+  rebuild:
+{{- range .WatchPatterns }}
+    - {{ . }}
+{{- end }}
+  static:
+{{- range .StaticPatterns }}
+    - {{ . }}
+{{- end }}

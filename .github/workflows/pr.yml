@@ -1,0 +1,43 @@
+name: pr
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build CLI
+        run: go build ./cmd/ebitdock
+
+      - name: Smoke generated WASM project
+        run: |
+          ./ebitdock init demo-game
+          cd demo-game
+          ../ebitdock build wasm
+          test -f static/game.wasm
+          test -f static/wasm_exec.js

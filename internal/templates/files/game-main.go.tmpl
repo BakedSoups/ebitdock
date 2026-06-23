@@ -1,0 +1,76 @@
+package main
+
+import (
+	"image/color"
+	"log"
+	"math"
+	"runtime"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+)
+
+type Game struct {
+	x, y   float64
+	vx, vy float64
+	pulse  float64
+}
+
+func main() {
+	ebiten.SetWindowTitle("{{ .Name }}")
+	ebiten.SetWindowSize(960, 540)
+	callBridge("ready")
+
+	game := &Game{x: 480, y: 270, vx: 2.4, vy: 1.6}
+	if err := ebiten.RunGame(game); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (g *Game) Update() error {
+	g.pulse += 0.05
+	speed := 4.0
+	if ebiten.IsKeyPressed(ebiten.KeyShift) {
+		speed = 7
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
+		g.x -= speed
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
+		g.x += speed
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) || ebiten.IsKeyPressed(ebiten.KeyW) {
+		g.y -= speed
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) || ebiten.IsKeyPressed(ebiten.KeyS) {
+		g.y += speed
+	}
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) || len(ebiten.AppendTouchIDs(nil)) > 0 {
+		x, y := ebiten.CursorPosition()
+		g.x, g.y = float64(x), float64(y)
+		callBridge("log", "pointer input received")
+	}
+	g.x = math.Max(24, math.Min(936, g.x))
+	g.y = math.Max(24, math.Min(516, g.y))
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(color.RGBA{R: 16, G: 20, B: 24, A: 255})
+	vector.DrawFilledCircle(screen, float32(g.x), float32(g.y), 22+float32(math.Sin(g.pulse)*4), color.RGBA{R: 86, G: 211, B: 194, A: 255}, true)
+	ebitenutil.DebugPrintAt(screen, "{{ .Name }}", 24, 22)
+	ebitenutil.DebugPrintAt(screen, "Move: WASD/arrows  Pointer: click/touch", 24, 42)
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	callBridge("setCanvasSize", outsideWidth, outsideHeight)
+	return 960, 540
+}
+
+func callBridge(name string, args ...any) {
+	if runtime.GOOS != "js" {
+		return
+	}
+	callJSBridge(name, args...)
+}

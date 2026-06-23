@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ebitdock</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0e1114; color: #d6dee5; }
+    body { margin: 0; }
+    main { max-width: 1040px; margin: 0 auto; padding: 18px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #29313a; padding-bottom: 10px; margin-bottom: 14px; }
+    h1 { font-size: 18px; margin: 0; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    section { border: 1px solid #29313a; background: #14191f; padding: 12px; min-height: 82px; }
+    h2 { margin: 0 0 9px; font-size: 12px; color: #8fa0ad; text-transform: uppercase; font-weight: 600; }
+    .value { font-size: 18px; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #5fd1c1; margin-right: 8px; }
+    .bad { background: #ff6978; }
+    .muted { color: #8795a1; }
+    .wide { grid-column: span 2; }
+    .full { grid-column: 1 / -1; }
+    pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 12px; line-height: 1.45; max-height: 280px; overflow: auto; }
+    ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; }
+    .bar { height: 6px; background: #242c34; margin-top: 10px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 100%; background: #5fd1c1; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>{{ .Project }}</h1>
+      <span class="muted">ebitdock</span>
+    </header>
+    <div class="grid">
+      <section>
+        <h2>Web</h2>
+        <div id="web-port" class="value">:{{ .WebPort }}</div>
+      </section>
+      <section>
+        <h2>Backend</h2>
+        <div><span id="backend-dot" class="dot {{ if ne .ServerStatus "running" }}bad{{ end }}"></span><span id="backend-status">{{ .ServerStatus }}</span></div>
+        <div id="server-port" class="muted">:{{ .ServerPort }}</div>
+      </section>
+      <section>
+        <h2>WASM Build</h2>
+        <div><span id="build-dot" class="dot {{ if eq .BuildStatus "failed" }}bad{{ end }}"></span><span id="build-status">{{ .BuildStatus }}</span></div>
+        <div class="bar"><span></span></div>
+      </section>
+      <section>
+        <h2>Duration</h2>
+        <div id="build-duration" class="value">{{ .BuildDuration }}</div>
+      </section>
+      <section class="wide">
+        <h2>Watched</h2>
+        <ul id="watched">{{ range .Watched }}<li>{{ . }}</li>{{ end }}</ul>
+      </section>
+      <section class="wide">
+        <h2>Errors</h2>
+        <pre id="errors">{{ range .CurrentErrors }}{{ . }}
+{{ else }}none{{ end }}</pre>
+      </section>
+      <section class="full">
+        <h2>Logs</h2>
+        <pre id="logs">{{ range .Logs }}{{ . }}
+{{ end }}</pre>
+      </section>
+    </div>
+  </main>
+  <script>
+    const els = {
+      webPort: document.getElementById("web-port"),
+      backendDot: document.getElementById("backend-dot"),
+      backendStatus: document.getElementById("backend-status"),
+      serverPort: document.getElementById("server-port"),
+      buildDot: document.getElementById("build-dot"),
+      buildStatus: document.getElementById("build-status"),
+      buildDuration: document.getElementById("build-duration"),
+      watched: document.getElementById("watched"),
+      errors: document.getElementById("errors"),
+      logs: document.getElementById("logs")
+    };
+
+    function lines(items, fallback) {
+      if (!items || items.length === 0) return fallback || "";
+      return items.join("\n");
+    }
+
+    function render(data) {
+      els.webPort.textContent = ":" + data.webPort;
+      els.backendStatus.textContent = data.serverStatus;
+      els.serverPort.textContent = ":" + data.serverPort;
+      els.backendDot.classList.toggle("bad", data.serverStatus !== "running");
+      els.buildStatus.textContent = data.buildStatus;
+      els.buildDuration.textContent = data.buildDuration || "";
+      els.buildDot.classList.toggle("bad", data.buildStatus === "failed");
+      els.watched.innerHTML = "";
+      for (const path of data.watched || []) {
+        const item = document.createElement("li");
+        item.textContent = path;
+        els.watched.appendChild(item);
+      }
+      els.errors.textContent = lines(data.currentErrors, "none");
+      els.logs.textContent = lines(data.logs);
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch("/api/status", { cache: "no-store" });
+        render(await res.json());
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setTimeout(refresh, 2000);
+      }
+    }
+    refresh();
+  </script>
+</body>
+</html>

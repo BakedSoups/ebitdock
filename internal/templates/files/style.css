@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  --canvas-width: 960px;
+  --canvas-height: 540px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #101418;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+canvas {
+  width: min(100%, var(--canvas-width));
+  height: auto;
+  max-height: 100vh;
+  image-rendering: pixelated;
+  background: #101418;
+}
