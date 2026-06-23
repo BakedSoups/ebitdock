@@ -56,8 +56,6 @@ dashboard  http://localhost:8081
 ebitdock init [name|.]
 ebitdock dev
 ebitdock build wasm
-ebitdock serve
-ebitdock dashboard
 ebitdock logs
 ebitdock export web
 ```

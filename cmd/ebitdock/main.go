@@ -12,11 +12,9 @@ import (
 
 	"ebitdock/internal/build"
 	"ebitdock/internal/config"
-	"ebitdock/internal/dashboard"
 	"ebitdock/internal/dev"
 	"ebitdock/internal/export"
 	"ebitdock/internal/process"
-	"ebitdock/internal/serve"
 	"ebitdock/internal/templates"
 )
 
@@ -26,8 +24,6 @@ Usage:
   ebitdock init [name|.]
   ebitdock dev
   ebitdock build wasm
-  ebitdock serve
-  ebitdock dashboard
   ebitdock logs
   ebitdock export web
 `
@@ -79,24 +75,6 @@ func run(args []string) error {
 		}
 		fmt.Printf("built %s in %s\n", cfg.Game.Output, result.Duration)
 		return nil
-	case "serve":
-		cfg, root, err := loadProject()
-		if err != nil {
-			return err
-		}
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		return serve.Run(ctx, root, cfg, newStatus(root, cfg))
-	case "dashboard":
-		cfg, root, err := loadProject()
-		if err != nil {
-			return err
-		}
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		status := newStatus(root, cfg)
-		status.AppendLog("dashboard started without dev supervisor")
-		return dashboard.Run(ctx, root, cfg, status)
 	case "logs":
 		_, root, err := loadProject()
 		if err != nil {
