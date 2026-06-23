@@ -28,6 +28,21 @@ ebitdock dev
 
 `init` writes `ebitdock.yaml` if it does not already exist. It does not overwrite or generate your web app.
 
+For a basic project folder:
+
+```sh
+ebitdock init my-game
+```
+
+This creates:
+
+```text
+my-game/
+  ebitdock.yaml
+```
+
+Add your Go game package and static web root, then edit the YAML paths to match.
+
 Open the URLs printed by `dev`, usually:
 
 ```text
@@ -156,4 +171,4 @@ dist/
 
 ## GitHub Checks
 
-The included GitHub Actions workflow runs formatting, vet, tests, CLI build, and a generated-project WASM smoke test on pull requests and pushes.
+The included GitHub Actions workflow runs formatting, vet, tests, CLI build, and an init smoke test on pull requests and pushes.

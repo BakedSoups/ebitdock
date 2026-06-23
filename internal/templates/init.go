@@ -14,33 +14,6 @@ import (
 //go:embed files/ebitdock.yaml.tmpl
 var configTemplate string
 
-//go:embed files/game-main.go.tmpl
-var gameMainTemplate string
-
-//go:embed files/game-bridge-js.go
-var gameBridgeJS string
-
-//go:embed files/game-bridge-stub.go
-var gameBridgeStub string
-
-//go:embed files/game-go.mod.tmpl
-var gameModTemplate string
-
-//go:embed files/index.html.tmpl
-var indexTemplate string
-
-//go:embed files/bridge.js
-var bridgeJS string
-
-//go:embed files/style.css
-var styleCSS string
-
-//go:embed files/server-main.go.tmpl
-var serverMainTemplate string
-
-//go:embed files/server-go.mod.tmpl
-var serverModTemplate string
-
 type projectData struct {
 	Name           string
 	Module         string
@@ -83,18 +56,7 @@ func InitProject(name string) error {
 		StaticPatterns: []string{"./static/**"},
 	}
 	files := map[string]string{
-		"ebitdock.yaml":       mustRender(configTemplate, data),
-		"game/main.go":        mustRender(gameMainTemplate, data),
-		"game/bridge_js.go":   gameBridgeJS,
-		"game/bridge_stub.go": gameBridgeStub,
-		"game/go.mod":         mustRender(gameModTemplate, data),
-		"static/index.html":   mustRender(indexTemplate, data),
-		"static/bridge.js":    bridgeJS,
-		"static/style.css":    styleCSS,
-		"server/main.go":      mustRender(serverMainTemplate, data),
-		"server/go.mod":       mustRender(serverModTemplate, data),
-		"assets/.gitkeep":     "",
-		"static/.gitkeep":     "",
+		"ebitdock.yaml": mustRender(configTemplate, data),
 	}
 
 	for path, content := range files {
@@ -109,7 +71,7 @@ func InitProject(name string) error {
 	fmt.Printf("created %s\n", name)
 	fmt.Println("next:")
 	fmt.Printf("  cd %s\n", name)
-	fmt.Println("  ebitdock dev")
+	fmt.Println("  edit ebitdock.yaml")
 	return nil
 }
 
@@ -155,7 +117,7 @@ func InitCurrentProject(name string) error {
 	}
 	fmt.Printf("initialized %s in %s (%d written, %d kept)\n", name, root, written, skipped)
 	fmt.Println("next:")
-	fmt.Println("  ebitdock dev")
+	fmt.Println("  edit ebitdock.yaml")
 	return nil
 }
 

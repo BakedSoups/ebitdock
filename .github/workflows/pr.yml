@@ -34,10 +34,8 @@ jobs:
       - name: Build CLI
         run: go build ./cmd/ebitdock
 
-      - name: Smoke generated WASM project
+      - name: Smoke init config
         run: |
           ./ebitdock init demo-game
           cd demo-game
-          ../ebitdock build wasm
-          test -f static/game.wasm
-          test -f static/wasm_exec.js
+          test -f ebitdock.yaml
