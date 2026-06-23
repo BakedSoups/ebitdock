@@ -1,6 +1,10 @@
 # ebitdock
 
-`ebitdock` is a lightweight Go-native CLI for Ebitengine WebAssembly development. It builds your game to WASM, serves your existing static web root with the right headers, starts optional local services, watches files, and exposes a compact dashboard for ports, logs, and build status.
+I really like Ebitengine. It is a great Go game engine, and its browser target makes it possible to compile Go games into lightweight WebAssembly experiences that run directly in the browser.
+
+The part I found awkward was everything around the game: port management, local service orchestration, and the setup needed for browser games that talk to backends, databases, or multiple APIs. That gets especially annoying for layered `.io`-style games or web games that need more than one local process.
+
+`ebitdock` exists for that layer. It is a lightweight Go-native CLI that builds your Ebitengine game to WASM, serves your existing static web root with the right headers, starts optional local services, watches files, and exposes a compact dashboard for ports, logs, and build status.
 
 It does not require Node.js, Docker, or a generated browser framework. Your project owns its HTML, JS, audio, assets, and browser bridge code.
 
@@ -57,7 +61,6 @@ ebitdock init [name|.]
 ebitdock dev
 ebitdock build wasm
 ebitdock logs
-ebitdock export web
 ```
 
 ## Project Model
@@ -154,18 +157,6 @@ GOOS=js GOARCH=wasm go build -mod=mod -o ./static/game.wasm ./cmd/game
 ```
 
 It also copies the matching `wasm_exec.js` from the installed Go toolchain to the configured `wasm.exec` path.
-
-## Export
-
-```sh
-ebitdock export web
-```
-
-Builds WASM and copies the configured static root into:
-
-```text
-dist/
-```
 
 ## GitHub Checks
 

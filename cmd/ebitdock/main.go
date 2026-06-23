@@ -13,7 +13,6 @@ import (
 	"ebitdock/internal/build"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dev"
-	"ebitdock/internal/export"
 	"ebitdock/internal/process"
 	"ebitdock/internal/templates"
 )
@@ -25,7 +24,6 @@ Usage:
   ebitdock dev
   ebitdock build wasm
   ebitdock logs
-  ebitdock export web
 `
 
 func main() {
@@ -89,15 +87,6 @@ func run(args []string) error {
 		}
 		fmt.Print(string(data))
 		return nil
-	case "export":
-		if len(args) != 2 || args[1] != "web" {
-			return errors.New("usage: ebitdock export web")
-		}
-		cfg, root, err := loadProject()
-		if err != nil {
-			return err
-		}
-		return export.Web(context.Background(), root, cfg)
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], strings.TrimSpace(usage))
 	}
