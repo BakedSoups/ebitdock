@@ -13,6 +13,7 @@ import (
 	"ebitdock/internal/build"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dev"
+	"ebitdock/internal/doctor"
 	"ebitdock/internal/process"
 	"ebitdock/internal/templates"
 )
@@ -24,6 +25,7 @@ Usage:
   ebitdock dev
   ebitdock build wasm
   ebitdock logs
+  ebitdock doctor
 `
 
 func main() {
@@ -89,6 +91,12 @@ func run(args []string) error {
 		}
 		fmt.Print(string(data))
 		return nil
+	case "doctor":
+		root, err := filepath.Abs(".")
+		if err != nil {
+			return err
+		}
+		return doctor.Run(os.Stdout, root)
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], strings.TrimSpace(usage))
 	}

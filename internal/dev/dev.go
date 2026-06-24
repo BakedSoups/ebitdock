@@ -6,23 +6,34 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
-	"ebitdock/internal/build"
 	"ebitdock/internal/cliui"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dashboard"
 	"ebitdock/internal/process"
-	"ebitdock/internal/serve"
+	"ebitdock/internal/tools"
 	"ebitdock/internal/watch"
 )
 
-// Run coordinates the local development session: web service, dashboard,
-// optional API process, initial WASM build, and file watching.
+// Run coordinates the local development session: wasmserve, dashboard,
+// optional API process, project logging, and file watching.
 func Run(ctx context.Context, root string, cfg config.Config) error {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
 	status.AppendLog("dev starting")
+
+	if err := tools.CheckWasmserve(nil); err != nil {
+		return err
+	}
+	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), cfg.Game.Package)
+	if err != nil {
+		return err
+	}
+	wasmserve, err := process.StartArgs(ctx, root, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
+	if err != nil {
+		return err
+	}
+	defer wasmserve.Stop()
 
 	var backend *process.Command
 	if cfg.APIEnabled() {
@@ -34,17 +45,11 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 		defer backend.Stop()
 	}
 
-	// Web and dashboard are independent local services. If either fails to bind
-	// a port, the error is surfaced through errs and dev exits.
+	// Dashboard is independent from wasmserve. If it fails to bind a port, the
+	// error is surfaced through errs and dev exits.
 	var wg sync.WaitGroup
-	errs := make(chan error, 4)
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		if err := serve.RunQuiet(ctx, root, cfg, status); err != nil {
-			errs <- err
-		}
-	}()
+	errs := make(chan error, 2)
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if err := dashboard.RunQuiet(ctx, root, cfg, status); err != nil {
@@ -52,20 +57,23 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 		}
 	}()
 
-	result := build.WASM(ctx, root, cfg, status)
-
-	// Watch both source and static paths. Source changes rebuild WASM; static
-	// changes are logged because the project owns its browser tooling.
+	// Watch source and static paths so dashboard/logs reflect local activity.
+	// wasmserve owns browser-target compilation during dev.
 	changes, watchErrs, err := watch.Changes(ctx, root, cfg.WatchPatterns())
 	if err != nil {
 		return err
 	}
-	cliui.DevStatus(os.Stdout, cfg, result)
+	cliui.DevStatus(os.Stdout, cfg)
 
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
+			return nil
+		case err := <-wasmserve.Done():
+			if err != nil {
+				return err
+			}
 			return nil
 		case err := <-errs:
 			return err
@@ -81,13 +89,11 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 				continue
 			}
 			status.AppendLog("change detected: " + path)
-			time.Sleep(150 * time.Millisecond)
 			if isStaticSourceChange(root, cfg, path) {
-				status.AppendLog("static file changed; refresh browser if needed")
+				status.AppendLog("static file changed")
 				continue
 			}
-			result := build.WASM(ctx, root, cfg, status)
-			cliui.BuildEvent(os.Stdout, result)
+			status.AppendLog("source file changed; wasmserve will rebuild on refresh")
 		}
 	}
 }

@@ -14,6 +14,12 @@ It does not require Node.js, Docker, or a generated browser framework. Your proj
 go install ./cmd/ebitdock
 ```
 
+`ebitdock dev` uses `wasmserve` as the browser game runner:
+
+```sh
+go install github.com/hajimehoshi/wasmserve@latest
+```
+
 During local development:
 
 ```sh
@@ -61,6 +67,7 @@ ebitdock init [name|.]
 ebitdock dev
 ebitdock build wasm
 ebitdock logs
+ebitdock doctor
 ```
 
 ## Project Model
@@ -131,18 +138,42 @@ watch:
 
 ## Dev Mode
 
-`ebitdock dev` starts the configured static server, dashboard server, optional API command, watcher, and initial WASM build.
+`ebitdock dev` starts `wasmserve`, the dashboard server, optional API command, watcher, and project-local logging.
+
+For this config:
+
+```yaml
+game:
+  package: ./cmd/game
+
+services:
+  web:
+    port: 8080
+```
+
+dev mode runs:
+
+```sh
+wasmserve -http :8080 ./cmd/game
+```
+
+If `wasmserve` is missing, install it with:
+
+```sh
+go install github.com/hajimehoshi/wasmserve@latest
+```
 
 Startup output is an aligned table:
 
 ```text
 SERVICE    STATUS    URL/DETAILS
-web        running   http://localhost:8080
+wasmserve  running   http://localhost:8080
 dashboard  running   http://localhost:8081
 backend    disabled  -
-wasm       ok        514ms
 watch      active    6 patterns
 ```
+
+Source and static file changes are logged during dev. `wasmserve` owns browser-target rebuilds.
 
 ## Build
 
@@ -157,6 +188,25 @@ GOOS=js GOARCH=wasm go build -mod=mod -o ./static/game.wasm ./cmd/game
 ```
 
 It also copies the matching `wasm_exec.js` from the installed Go toolchain to the configured `wasm.exec` path.
+
+## Doctor
+
+```sh
+ebitdock doctor
+```
+
+Checks the local config and toolchain:
+
+```text
+CHECK       STATUS    DETAILS
+config      ok        ebitdock.yaml
+go          ok        go1.24.4 linux/amd64
+wasmserve   ok        /home/alex/go/bin/wasmserve
+game        ok        ./cmd/game
+web         ok        ./static
+dashboard   ok        :8081
+api         disabled  -
+```
 
 ## GitHub Checks
 
