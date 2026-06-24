@@ -15,12 +15,15 @@ import (
 	"ebitdock/internal/process"
 )
 
+// Result captures the user-visible outcome of a WASM build.
 type Result struct {
 	Duration time.Duration
 	Log      string
 	Err      error
 }
 
+// WASM builds the configured Go package for the browser target and copies the
+// matching wasm_exec.js from the installed Go toolchain.
 func WASM(ctx context.Context, root string, cfg config.Config, status *process.Status) Result {
 	start := time.Now()
 	status.SetBuild("building", "", nil)
@@ -54,6 +57,8 @@ func WASM(ctx context.Context, root string, cfg config.Config, status *process.S
 	return finish(status, start, out.String(), nil)
 }
 
+// buildTarget lets a project keep the game in its own nested Go module. In that
+// case we run "go build ." from the nested module and write to an absolute path.
 func buildTarget(root, pkg string) (dir, target string) {
 	pkgDir := filepath.Join(root, pkg)
 	if _, err := os.Stat(filepath.Join(pkgDir, "go.mod")); err == nil {
@@ -62,6 +67,8 @@ func buildTarget(root, pkg string) (dir, target string) {
 	return root, pkg
 }
 
+// CopyWASMExec copies the Go runtime shim that must match the user's installed
+// Go version. The location changed across Go releases, so both paths are tried.
 func CopyWASMExec(root string, cfg config.Config) error {
 	src := filepath.Join(runtime.GOROOT(), "lib", "wasm", "wasm_exec.js")
 	if _, err := os.Stat(src); err != nil {
@@ -82,6 +89,7 @@ func CopyWASMExec(root string, cfg config.Config) error {
 	return os.WriteFile(dst, data, 0o644)
 }
 
+// finish updates shared status/logs and returns a compact Result.
 func finish(status *process.Status, start time.Time, logText string, err error) Result {
 	duration := time.Since(start)
 	if logText != "" {

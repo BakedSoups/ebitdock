@@ -16,14 +16,18 @@ import (
 //go:embed dashboard.html
 var page string
 
+// Run starts the dashboard and prints its URL.
 func Run(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
 	return run(ctx, root, cfg, status, true)
 }
 
+// RunQuiet starts the dashboard without printing; dev mode owns terminal output.
 func RunQuiet(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
 	return run(ctx, root, cfg, status, false)
 }
 
+// run serves both the HTML dashboard and the JSON status endpoint from the same
+// in-memory Status object.
 func run(ctx context.Context, root string, cfg config.Config, status *process.Status, printURL bool) error {
 	_ = root
 	mux := http.NewServeMux()

@@ -33,6 +33,8 @@ func main() {
 	}
 }
 
+// run is intentionally thin: command parsing lives here, while command behavior
+// stays in internal packages that can be tested without a CLI process.
 func run(args []string) error {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Print(usage)
@@ -92,6 +94,8 @@ func run(args []string) error {
 	}
 }
 
+// newStatus creates the shared dashboard/log state for commands that operate on
+// a loaded project. Persistent logs are per project root, not global.
 func newStatus(root string, cfg config.Config) *process.Status {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(logPath(root))
@@ -102,6 +106,8 @@ func logPath(root string) string {
 	return filepath.Join(root, ".ebitdock", "ebitdock.log")
 }
 
+// loadProject treats the current working directory as the project root. This
+// keeps ebitdock close to Go tooling: cd into the project, then run commands.
 func loadProject() (config.Config, string, error) {
 	root, err := filepath.Abs(".")
 	if err != nil {

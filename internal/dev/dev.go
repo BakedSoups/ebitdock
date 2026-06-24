@@ -17,6 +17,8 @@ import (
 	"ebitdock/internal/watch"
 )
 
+// Run coordinates the local development session: web service, dashboard,
+// optional API process, initial WASM build, and file watching.
 func Run(ctx context.Context, root string, cfg config.Config) error {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
@@ -32,6 +34,8 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 		defer backend.Stop()
 	}
 
+	// Web and dashboard are independent local services. If either fails to bind
+	// a port, the error is surfaced through errs and dev exits.
 	var wg sync.WaitGroup
 	errs := make(chan error, 4)
 	wg.Add(2)
@@ -50,6 +54,8 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 
 	result := build.WASM(ctx, root, cfg, status)
 
+	// Watch both source and static paths. Source changes rebuild WASM; static
+	// changes are logged because the project owns its browser tooling.
 	changes, watchErrs, err := watch.Changes(ctx, root, cfg.WatchPatterns())
 	if err != nil {
 		return err
@@ -86,6 +92,8 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	}
 }
 
+// isGeneratedBuildOutput prevents rebuild loops when the builder writes
+// game.wasm or wasm_exec.js into a watched static directory.
 func isGeneratedBuildOutput(root string, cfg config.Config, path string) bool {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -102,6 +110,8 @@ func isGeneratedBuildOutput(root string, cfg config.Config, path string) bool {
 	return abs == output || abs == wasmExec
 }
 
+// isStaticSourceChange reports whether a changed file belongs to the configured
+// static root rather than Go source or asset inputs.
 func isStaticSourceChange(root string, cfg config.Config, path string) bool {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -110,6 +120,8 @@ func isStaticSourceChange(root string, cfg config.Config, path string) bool {
 	return containsPath(root, cfg.StaticRoot(), abs)
 }
 
+// containsPath is a path-containment check based on filepath.Rel, avoiding
+// brittle string-prefix checks across relative and absolute paths.
 func containsPath(root, base, path string) bool {
 	baseAbs, err := filepath.Abs(filepath.Join(root, base))
 	if err != nil {

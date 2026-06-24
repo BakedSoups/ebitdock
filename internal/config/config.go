@@ -7,6 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the in-memory form of ebitdock.yaml. The top-level shape is meant
+// to read like a small compose file: game build inputs, services, dashboard,
+// and file-watch groups.
 type Config struct {
 	Project   string          `yaml:"project"`
 	Game      GameConfig      `yaml:"game"`
@@ -20,26 +23,34 @@ type Config struct {
 	Server ServerConfig `yaml:"server"`
 }
 
+// GameConfig points at the Go package to build and the output WASM file for
+// explicit production-style builds.
 type GameConfig struct {
 	Package string `yaml:"package"`
 	Output  string `yaml:"output"`
 }
 
+// WebConfig is the old pre-services web block. It is still decoded so projects
+// created by earlier ebitdock versions do not fail immediately.
 type WebConfig struct {
 	Root          string `yaml:"root"`
 	Port          int    `yaml:"port"`
 	DashboardPort int    `yaml:"dashboard_port"`
 }
 
+// WASMConfig controls where the Go runtime shim is copied during build wasm.
 type WASMConfig struct {
 	Exec string `yaml:"exec"`
 }
 
+// ServicesConfig groups local processes that dev mode can start and track.
 type ServicesConfig struct {
 	Web ServiceConfig `yaml:"web"`
 	API ServiceConfig `yaml:"api"`
 }
 
+// ServiceConfig is shared by static web service and optional API process. Some
+// fields are only meaningful for one service type.
 type ServiceConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"`
@@ -47,21 +58,28 @@ type ServiceConfig struct {
 	Port    int    `yaml:"port"`
 }
 
+// DashboardConfig keeps the dashboard port separate from the user-facing web
+// service port.
 type DashboardConfig struct {
 	Port int `yaml:"port"`
 }
 
+// ServerConfig is the old backend block. It maps into services.api defaults.
 type ServerConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"`
 	Port    int    `yaml:"port"`
 }
 
+// WatchConfig separates source changes that should rebuild WASM from static
+// changes that only need to be logged or handled by the user's browser tooling.
 type WatchConfig struct {
 	Rebuild []string `yaml:"rebuild"`
 	Static  []string `yaml:"static"`
 }
 
+// UnmarshalYAML accepts both the new mapping form and the older list form:
+// watch: [./game/**/*.go, ./assets/**]. Old lists become rebuild watches.
 func (w *WatchConfig) UnmarshalYAML(value *yaml.Node) error {
 	switch value.Kind {
 	case yaml.SequenceNode:
@@ -79,6 +97,8 @@ func (w *WatchConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
+// Load reads ebitdock.yaml, applies compatibility defaults, and validates the
+// normalized config used by the rest of the program.
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -95,6 +115,8 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// SetDefaults normalizes old and new config shapes into the services-based
+// model. Prefer helper methods like WebPort over reading raw fields directly.
 func (c *Config) SetDefaults() {
 	if c.Game.Package == "" {
 		c.Game.Package = "./game"
@@ -146,6 +168,8 @@ func (c *Config) SetDefaults() {
 	}
 }
 
+// Validate checks only the values needed for command execution. Deeper checks,
+// like whether a package exists, are left to the command that uses them.
 func (c Config) Validate() error {
 	if c.Project == "" {
 		return fmt.Errorf("project is required in ebitdock.yaml")
@@ -156,42 +180,52 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// StaticRoot returns the directory served as the browser app.
 func (c Config) StaticRoot() string {
 	return c.Services.Web.Root
 }
 
+// WebPort returns the port for the browser-facing web service.
 func (c Config) WebPort() int {
 	return c.Services.Web.Port
 }
 
+// DashboardPort returns the local dashboard port.
 func (c Config) DashboardPort() int {
 	return c.Dashboard.Port
 }
 
+// APIEnabled reports whether the optional backend process should be started.
 func (c Config) APIEnabled() bool {
 	return c.Services.API.Enabled
 }
 
+// APICommand returns the shell-like command string for the optional backend.
 func (c Config) APICommand() string {
 	return c.Services.API.Command
 }
 
+// APIPort returns the configured backend port for display/status purposes.
 func (c Config) APIPort() int {
 	return c.Services.API.Port
 }
 
+// WASMExecPath returns where the matching Go wasm_exec.js should be copied.
 func (c Config) WASMExecPath() string {
 	return c.WASM.Exec
 }
 
+// RebuildWatch returns patterns that should trigger a WASM rebuild.
 func (c Config) RebuildWatch() []string {
 	return append([]string(nil), c.Watch.Rebuild...)
 }
 
+// StaticWatch returns patterns that are part of the user-owned static web app.
 func (c Config) StaticWatch() []string {
 	return append([]string(nil), c.Watch.Static...)
 }
 
+// WatchPatterns returns every pattern dev mode should subscribe to.
 func (c Config) WatchPatterns() []string {
 	patterns := append([]string(nil), c.Watch.Rebuild...)
 	patterns = append(patterns, c.Watch.Static...)

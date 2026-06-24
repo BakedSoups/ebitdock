@@ -6,10 +6,13 @@ import (
 	"os/exec"
 )
 
+// WasmserveInstallCommand is included verbatim in missing-tool errors.
 const WasmserveInstallCommand = "go install github.com/hajimehoshi/wasmserve@latest"
 
+// LookupFunc lets tests replace exec.LookPath without touching PATH.
 type LookupFunc func(string) (string, error)
 
+// CheckWasmserve verifies that the external wasmserve command is installed.
 func CheckWasmserve(lookup LookupFunc) error {
 	if lookup == nil {
 		lookup = exec.LookPath
@@ -20,6 +23,8 @@ func CheckWasmserve(lookup LookupFunc) error {
 	return nil
 }
 
+// WasmserveCommand builds the command line ebitdock will use once dev mode is
+// wired to wasmserve.
 func WasmserveCommand(port int, gamePackage string) (string, []string, error) {
 	if gamePackage == "" {
 		return "", nil, errors.New("game.package is required for wasmserve")

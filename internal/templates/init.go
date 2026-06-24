@@ -14,6 +14,7 @@ import (
 //go:embed files/ebitdock.yaml.tmpl
 var configTemplate string
 
+// projectData is the small view model used by ebitdock.yaml.tmpl.
 type projectData struct {
 	Name           string
 	Module         string
@@ -27,6 +28,8 @@ type projectData struct {
 	StaticPatterns []string
 }
 
+// InitProject creates an ebitdock.yaml either in the current directory or in a
+// new named directory. It intentionally does not scaffold the user's web app.
 func InitProject(name string) error {
 	if name == "" || name == "." {
 		return InitCurrentProject(name)
@@ -75,6 +78,8 @@ func InitProject(name string) error {
 	return nil
 }
 
+// InitCurrentProject writes ebitdock.yaml into the current repo, preserving an
+// existing file so init can be rerun safely.
 func InitCurrentProject(name string) error {
 	root, err := os.Getwd()
 	if err != nil {
@@ -121,6 +126,8 @@ func InitCurrentProject(name string) error {
 	return nil
 }
 
+// shouldInitCurrent treats "ebitdock init <current-folder>" inside a Go module
+// as an in-place init instead of trying to create a nested folder.
 func shouldInitCurrent(name string) bool {
 	root, err := os.Getwd()
 	if err != nil {
@@ -133,6 +140,8 @@ func shouldInitCurrent(name string) bool {
 	return err == nil
 }
 
+// inferRebuildWatchPatterns chooses common Go game source/asset directories for
+// a first config. Users are expected to edit the YAML after init.
 func inferRebuildWatchPatterns(root string) []string {
 	candidates := []struct {
 		dir     string
@@ -156,10 +165,13 @@ func inferRebuildWatchPatterns(root string) []string {
 	return patterns
 }
 
+// inferStaticWatchPatterns watches the detected browser static root.
 func inferStaticWatchPatterns(root string) []string {
 	return []string{inferStaticRoot(root) + "/**"}
 }
 
+// inferStaticRoot prefers existing conventional static roots and falls back to
+// ./static for new/basic projects.
 func inferStaticRoot(root string) string {
 	for _, dir := range []string{"static", "web", "public"} {
 		if info, err := os.Stat(filepath.Join(root, dir)); err == nil && info.IsDir() {
@@ -169,6 +181,7 @@ func inferStaticRoot(root string) string {
 	return "./static"
 }
 
+// inferGamePackage guesses the most likely game entrypoint package.
 func inferGamePackage(root, name string) string {
 	candidates := []string{
 		filepath.Join("cmd", name),
@@ -191,6 +204,7 @@ func inferGamePackage(root, name string) string {
 	return "."
 }
 
+// hasGoFiles reports whether a directory looks like a Go package.
 func hasGoFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -204,6 +218,7 @@ func hasGoFiles(dir string) bool {
 	return false
 }
 
+// writeNewFile creates a file without overwriting user-owned content.
 func writeNewFile(path, content string) (bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return false, nil
@@ -216,6 +231,7 @@ func writeNewFile(path, content string) (bool, error) {
 	return true, os.WriteFile(path, []byte(content), 0o644)
 }
 
+// validProjectName keeps generated folder names portable and predictable.
 func validProjectName(name string) bool {
 	if name == "" || name == "." || name == ".." {
 		return false
@@ -229,6 +245,8 @@ func validProjectName(name string) bool {
 	return true
 }
 
+// mustRender renders embedded templates during init. Panics here indicate a
+// developer error in a checked-in template, not user input.
 func mustRender(src string, data projectData) string {
 	tpl := template.Must(template.New("file").Parse(src))
 	var buf bytes.Buffer

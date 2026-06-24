@@ -10,6 +10,8 @@ import (
 	"ebitdock/internal/config"
 )
 
+// DevStatus prints the startup service table. tabwriter keeps the output
+// Docker-like without adding a formatting dependency.
 func DevStatus(w io.Writer, cfg config.Config, result build.Result) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "SERVICE\tSTATUS\tURL/DETAILS")
@@ -29,6 +31,7 @@ func DevStatus(w io.Writer, cfg config.Config, result build.Result) {
 	_ = tw.Flush()
 }
 
+// BuildEvent prints a one-line rebuild result after file changes.
 func BuildEvent(w io.Writer, result build.Result) {
 	if result.Err != nil {
 		fmt.Fprintf(w, "wasm\tfailed\t%s\n", result.Err)
@@ -37,6 +40,8 @@ func BuildEvent(w io.Writer, result build.Result) {
 	fmt.Fprintf(w, "wasm\tok\t%s\n", roundDuration(result.Duration))
 }
 
+// roundDuration keeps terminal status readable while preserving sub-second
+// signal during fast rebuilds.
 func roundDuration(d time.Duration) time.Duration {
 	if d > time.Second {
 		return d.Round(10 * time.Millisecond)

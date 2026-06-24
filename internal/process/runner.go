@@ -7,10 +7,13 @@ import (
 	"strings"
 )
 
+// Command wraps a cancellable child process started by dev mode.
 type Command struct {
 	cancel context.CancelFunc
 }
 
+// Start launches a configured local service command and streams stdout/stderr
+// into shared status logs.
 func Start(ctx context.Context, dir, command string, status *Status) (*Command, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	parts := strings.Fields(command)
@@ -54,12 +57,16 @@ func Start(ctx context.Context, dir, command string, status *Status) (*Command, 
 	return &Command{cancel: cancel}, nil
 }
 
+// Stop cancels the command context. exec.CommandContext handles terminating the
+// child process.
 func (c *Command) Stop() {
 	if c != nil && c.cancel != nil {
 		c.cancel()
 	}
 }
 
+// scanLines keeps child process output visible in the dashboard without
+// coupling the runner to any terminal UI.
 func scanLines(r interface{ Read([]byte) (int, error) }, status *Status) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {

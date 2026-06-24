@@ -9,6 +9,9 @@ import (
 	"ebitdock/internal/config"
 )
 
+// Status is the shared mutable state behind terminal logs and dashboard JSON.
+// All reads and writes go through methods so dev goroutines can update it
+// safely.
 type Status struct {
 	mu sync.RWMutex
 
@@ -16,6 +19,7 @@ type Status struct {
 	state
 }
 
+// state is the mutex-free snapshot shape encoded by /api/status.
 type state struct {
 	Project       string    `json:"project"`
 	WebPort       int       `json:"webPort"`
@@ -31,12 +35,14 @@ type state struct {
 	Logs          []string  `json:"logs"`
 }
 
+// SetLogFile enables persistent project-local logging.
 func (s *Status) SetLogFile(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.logFile = path
 }
 
+// NewStatus seeds dashboard state from normalized project config.
 func NewStatus(cfg config.Config) *Status {
 	return &Status{
 		state: state{
@@ -52,6 +58,8 @@ func NewStatus(cfg config.Config) *Status {
 	}
 }
 
+// Snapshot returns a copy that is safe to encode or inspect without holding the
+// status lock.
 func (s *Status) Snapshot() state {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -62,6 +70,7 @@ func (s *Status) Snapshot() state {
 	return cp
 }
 
+// SetBuild records the latest WASM build state and any current error.
 func (s *Status) SetBuild(status, duration string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -75,12 +84,15 @@ func (s *Status) SetBuild(status, duration string, err error) {
 	}
 }
 
+// SetServer records the optional backend process state.
 func (s *Status) SetServer(status string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ServerStatus = status
 }
 
+// AppendLog appends to the in-memory ring and mirrors the same line to disk
+// when persistent logging is enabled.
 func (s *Status) AppendLog(line string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -99,6 +111,7 @@ func (s *Status) AppendLog(line string) {
 	}
 }
 
+// RecentLogs returns a copy of the current in-memory log tail.
 func (s *Status) RecentLogs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

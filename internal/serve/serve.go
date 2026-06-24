@@ -12,10 +12,13 @@ import (
 	"ebitdock/internal/process"
 )
 
+// Run starts the configured static web server and prints its URL.
 func Run(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
 	return run(ctx, root, cfg, status, true)
 }
 
+// RunQuiet starts the same server without printing; dev mode prints one
+// consolidated service table instead.
 func RunQuiet(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
 	return run(ctx, root, cfg, status, false)
 }
@@ -24,6 +27,7 @@ func run(ctx context.Context, root string, cfg config.Config, status *process.St
 	return runHandler(ctx, Server(root, cfg), cfg, status, printURL)
 }
 
+// runHandler owns the HTTP server lifecycle and shuts down when ctx is canceled.
 func runHandler(ctx context.Context, handler http.Handler, cfg config.Config, status *process.Status, printURL bool) error {
 	addr := fmt.Sprintf(":%d", cfg.WebPort())
 	httpServer := &http.Server{
@@ -48,6 +52,8 @@ func runHandler(ctx context.Context, handler http.Handler, cfg config.Config, st
 	return err
 }
 
+// Server serves the user-owned static root and ensures WASM gets the MIME type
+// browsers require.
 func Server(root string, cfg config.Config) http.Handler {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	webRoot := filepath.Join(root, cfg.StaticRoot())

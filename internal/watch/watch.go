@@ -10,6 +10,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// Changes creates fsnotify watchers for the roots implied by the configured
+// glob-like patterns and emits changed paths until ctx is canceled.
 func Changes(ctx context.Context, root string, patterns []string) (<-chan string, <-chan error, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -51,6 +53,8 @@ func Changes(ctx context.Context, root string, patterns []string) (<-chan string
 				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
 					continue
 				}
+				// Many editors save through multiple quick filesystem events.
+				// Collapse identical adjacent events to avoid duplicate rebuilds.
 				if event.Name == last && time.Since(lastAt) < 250*time.Millisecond {
 					continue
 				}
@@ -62,6 +66,8 @@ func Changes(ctx context.Context, root string, patterns []string) (<-chan string
 	return changes, errs, nil
 }
 
+// watchDirs reduces broad patterns like ./internal/**/*.go to concrete
+// directories that fsnotify can subscribe to.
 func watchDirs(root string, patterns []string) []string {
 	seen := map[string]bool{}
 	var dirs []string
@@ -87,6 +93,8 @@ func watchDirs(root string, patterns []string) []string {
 	return dirs
 }
 
+// addRecursive subscribes to a directory tree and adds newly created
+// subdirectories later from the event loop.
 func addRecursive(watcher *fsnotify.Watcher, dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil
