@@ -43,6 +43,21 @@ func TestInferGamePackagePrefersNamedCommand(t *testing.T) {
 	}
 }
 
+func TestInferGamePackageUsesWasmDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "wasm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "wasm", "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := inferGamePackage(root, "package-manager")
+	if got != "./wasm" {
+		t.Fatalf("inferGamePackage() = %q, want ./wasm", got)
+	}
+}
+
 func TestInitCurrentProjectWritesOnlyConfig(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {

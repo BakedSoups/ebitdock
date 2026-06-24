@@ -11,11 +11,20 @@ services:
   web:
     root: {{ .StaticRoot }}
     port: {{ .WebPort }}
+    ports:
+      - name: web
+        port: {{ .WebPort }}
+        url: http://localhost:{{ .WebPort }}
+    command: ""
 
   api:
     enabled: false
     command: go run ./server
     port: 3001
+    ports:
+      - name: api
+        port: 3001
+        url: http://localhost:3001
 
 dashboard:
   port: {{ .DashboardPort }}

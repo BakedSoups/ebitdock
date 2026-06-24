@@ -17,15 +17,20 @@ type Command struct {
 // Start launches a configured local service command and streams stdout/stderr
 // into shared status logs.
 func Start(ctx context.Context, dir, command string, status *Status) (*Command, error) {
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
-		return nil, nil
-	}
 	var setState func(string)
 	if status != nil {
 		setState = status.SetServer
 	}
-	return StartArgs(ctx, dir, parts[0], parts[1:], "backend", status, setState)
+	return StartCommand(ctx, dir, command, "backend", status, setState)
+}
+
+// StartCommand launches a whitespace-split project command with a custom label.
+func StartCommand(ctx context.Context, dir, command, label string, status *Status, setState func(string)) (*Command, error) {
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	return StartArgs(ctx, dir, parts[0], parts[1:], label, status, setState)
 }
 
 // StartArgs launches a child process from explicit argv parts. The optional

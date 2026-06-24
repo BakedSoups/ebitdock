@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,10 +54,37 @@ type ServicesConfig struct {
 // ServiceConfig is shared by static web service and optional API process. Some
 // fields are only meaningful for one service type.
 type ServiceConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Command string `yaml:"command"`
-	Root    string `yaml:"root"`
-	Port    int    `yaml:"port"`
+	Enabled bool         `yaml:"enabled"`
+	Command string       `yaml:"command"`
+	Root    string       `yaml:"root"`
+	Port    int          `yaml:"port"`
+	Ports   []PortConfig `yaml:"ports"`
+}
+
+// PortConfig describes one dashboard-visible port exposed by a service.
+type PortConfig struct {
+	Name string `yaml:"name" json:"name"`
+	Port int    `yaml:"port" json:"port"`
+	URL  string `yaml:"url" json:"url"`
+}
+
+// UnmarshalYAML accepts both compact numeric ports and named port mappings:
+// ports: [8080, 3001] or ports: [{name: api, port: 3001}].
+func (p *PortConfig) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		port, err := strconv.Atoi(value.Value)
+		if err != nil {
+			return fmt.Errorf("port must be a number: %q", value.Value)
+		}
+		p.Port = port
+		return nil
+	case yaml.MappingNode:
+		type raw PortConfig
+		return value.Decode((*raw)(p))
+	default:
+		return fmt.Errorf("port must be a number or mapping")
+	}
 }
 
 // DashboardConfig keeps the dashboard port separate from the user-facing web
@@ -139,6 +168,7 @@ func (c *Config) SetDefaults() {
 	if c.Services.Web.Port == 0 {
 		c.Services.Web.Port = 8080
 	}
+	c.Services.Web.Ports = normalizePorts("web", c.Services.Web.Port, c.Services.Web.Ports)
 	if c.Dashboard.Port == 0 {
 		c.Dashboard.Port = c.Web.DashboardPort
 	}
@@ -160,12 +190,42 @@ func (c *Config) SetDefaults() {
 	if c.Services.API.Port == 0 {
 		c.Services.API.Port = 3001
 	}
+	c.Services.API.Ports = normalizePorts("api", c.Services.API.Port, c.Services.API.Ports)
 	if len(c.Watch.Rebuild) == 0 {
 		c.Watch.Rebuild = []string{"./game/**/*.go", "./assets/**"}
 	}
 	if len(c.Watch.Static) == 0 {
 		c.Watch.Static = []string{c.Services.Web.Root + "/**"}
 	}
+}
+
+func normalizePorts(primaryName string, primary int, extras []PortConfig) []PortConfig {
+	seen := map[int]bool{}
+	var ports []PortConfig
+	if primary != 0 {
+		seen[primary] = true
+		ports = append(ports, normalizePort(PortConfig{Name: primaryName, Port: primary}))
+	}
+	for _, port := range extras {
+		port = normalizePort(port)
+		if port.Port == 0 || seen[port.Port] {
+			continue
+		}
+		seen[port.Port] = true
+		ports = append(ports, port)
+	}
+	return ports
+}
+
+func normalizePort(port PortConfig) PortConfig {
+	port.Name = strings.TrimSpace(port.Name)
+	if port.Name == "" && port.Port != 0 {
+		port.Name = "port " + strconv.Itoa(port.Port)
+	}
+	if port.URL == "" && port.Port != 0 {
+		port.URL = "http://localhost:" + strconv.Itoa(port.Port)
+	}
+	return port
 }
 
 // Validate checks only the values needed for command execution. Deeper checks,
@@ -185,9 +245,25 @@ func (c Config) StaticRoot() string {
 	return c.Services.Web.Root
 }
 
+// WebCommand returns the project-owned browser server command, when configured.
+func (c Config) WebCommand() string {
+	return c.Services.Web.Command
+}
+
+// UsesWebCommand reports whether dev should run a project-owned web server
+// instead of wasmserve.
+func (c Config) UsesWebCommand() bool {
+	return c.Services.Web.Command != ""
+}
+
 // WebPort returns the port for the browser-facing web service.
 func (c Config) WebPort() int {
 	return c.Services.Web.Port
+}
+
+// WebPorts returns every configured browser-facing port.
+func (c Config) WebPorts() []PortConfig {
+	return append([]PortConfig(nil), c.Services.Web.Ports...)
 }
 
 // DashboardPort returns the local dashboard port.
@@ -208,6 +284,11 @@ func (c Config) APICommand() string {
 // APIPort returns the configured backend port for display/status purposes.
 func (c Config) APIPort() int {
 	return c.Services.API.Port
+}
+
+// APIPorts returns every configured backend/API port.
+func (c Config) APIPorts() []PortConfig {
+	return append([]PortConfig(nil), c.Services.API.Ports...)
 }
 
 // WASMExecPath returns where the matching Go wasm_exec.js should be copied.

@@ -148,6 +148,7 @@ func inferRebuildWatchPatterns(root string) []string {
 		pattern string
 	}{
 		{"cmd", "./cmd/**/*.go"},
+		{"wasm", "./wasm/**/*.go"},
 		{"internal", "./internal/**/*.go"},
 		{"assets", "./assets/**"},
 		{"levels", "./levels/**"},
@@ -186,6 +187,7 @@ func inferGamePackage(root, name string) string {
 	candidates := []string{
 		filepath.Join("cmd", name),
 		filepath.Join("cmd", "game"),
+		"wasm",
 		"cmd",
 		".",
 	}

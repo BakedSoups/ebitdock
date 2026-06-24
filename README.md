@@ -130,11 +130,20 @@ services:
   web:
     root: ./static
     port: 8080
+    ports:
+      - name: web
+        port: 8080
+        url: http://localhost:8080
+    command: ""
 
   api:
     enabled: false
     command: go run ./server
     port: 3001
+    ports:
+      - name: api
+        port: 3001
+        url: http://localhost:3001
 
 dashboard:
   port: 8081
@@ -214,6 +223,61 @@ A user-owned shell can branch on localhost:
     });
   }
 </script>
+```
+
+Projects that already own a local web server can keep using it:
+
+```yaml
+services:
+  web:
+    root: ./static
+    port: 8080
+    ports:
+      - name: web
+        port: 8080
+        url: http://localhost:8080
+      - name: admin
+        port: 3000
+        url: http://localhost:3000
+    command: go run .
+```
+
+When `services.web.command` is set, `ebitdock dev` starts that command instead of `wasmserve`. Source changes rebuild `game.output`; static changes are logged. This is useful for existing games that serve dynamic development endpoints such as `/config.js`, `/music.json`, asset aliases, auth config, or local API shims from their own Go server.
+
+Use `ports` when a project-owned command exposes more than one listener, such as a game web port plus an API, WebSocket, admin, or metrics port. The single `port` remains the primary browser URL.
+
+Bare numeric ports are also accepted:
+
+```yaml
+ports:
+  - 8080
+  - 3000
+```
+
+For an existing project shaped like:
+
+```text
+main.go       # local web server
+wasm/         # Ebitengine game package
+static/       # browser shell and assets
+```
+
+the important config is:
+
+```yaml
+game:
+  package: ./wasm
+  output: ./static/game.wasm
+
+services:
+  web:
+    root: ./static
+    port: 8080
+    ports:
+      - name: web
+        port: 8080
+        url: http://localhost:8080
+    command: go run .
 ```
 
 ## Build

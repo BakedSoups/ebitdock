@@ -3,11 +3,13 @@ package dev
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"ebitdock/internal/build"
 	"ebitdock/internal/cliui"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dashboard"
@@ -23,22 +25,11 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
 	status.AppendLog("dev starting")
 
-	if err := tools.CheckWasmserve(nil); err != nil {
-		return err
-	}
-	wasmserveDir, wasmserveTarget, err := wasmserveWorkingDirAndTarget(root, cfg)
+	web, webMode, err := startWeb(ctx, root, cfg, status)
 	if err != nil {
 		return err
 	}
-	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), wasmserveTarget)
-	if err != nil {
-		return err
-	}
-	wasmserve, err := process.StartArgs(ctx, wasmserveDir, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
-	if err != nil {
-		return err
-	}
-	defer wasmserve.Stop()
+	defer web.Stop()
 
 	var backend *process.Command
 	if cfg.APIEnabled() {
@@ -68,10 +59,18 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	cliui.DevStatus(os.Stdout, cfg)
-	for _, hint := range tools.BrowserShellHints(root, cfg.StaticRoot()) {
-		status.AppendLog("dev hint: " + hint)
-		fmt.Fprintln(os.Stdout, "warn\t"+hint)
+	cliui.DevStatus(os.Stdout, cfg, webServiceName(webMode))
+	if webMode == webModeWasmserve {
+		for _, hint := range tools.BrowserShellHints(root, cfg.StaticRoot()) {
+			status.AppendLog("dev hint: " + hint)
+			fmt.Fprintln(os.Stdout, "warn\t"+hint)
+		}
+	} else {
+		result := build.WASM(ctx, root, cfg, status)
+		printBuildResult(os.Stdout, result)
+		if result.Err != nil {
+			return result.Err
+		}
 	}
 
 	for {
@@ -79,7 +78,7 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 		case <-ctx.Done():
 			wg.Wait()
 			return nil
-		case err := <-wasmserve.Done():
+		case err := <-web.Done():
 			if err != nil {
 				return err
 			}
@@ -102,17 +101,70 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 			if isStaticSourceChange(root, cfg, path) {
 				status.AppendLog("static file changed")
 			} else {
-				status.AppendLog("source file changed; notifying wasmserve")
+				if webMode == webModeCommand {
+					status.AppendLog("source file changed; rebuilding wasm")
+					result := build.WASM(ctx, root, cfg, status)
+					printBuildResult(os.Stdout, result)
+					if result.Err != nil {
+						continue
+					}
+				} else {
+					status.AppendLog("source file changed; notifying wasmserve")
+				}
 			}
-			if err := tools.NotifyWasmserve(ctx, cfg.WebPort()); err != nil {
-				status.AppendLog("wasmserve notify failed: " + err.Error())
-				fmt.Fprintln(os.Stdout, "notify\tfailed\t"+err.Error())
-			} else {
-				status.AppendLog("wasmserve notified")
-				fmt.Fprintln(os.Stdout, "notify\tok")
+			if webMode == webModeWasmserve {
+				if err := tools.NotifyWasmserve(ctx, cfg.WebPort()); err != nil {
+					status.AppendLog("wasmserve notify failed: " + err.Error())
+					fmt.Fprintln(os.Stdout, "notify\tfailed\t"+err.Error())
+				} else {
+					status.AppendLog("wasmserve notified")
+					fmt.Fprintln(os.Stdout, "notify\tok")
+				}
 			}
 		}
 	}
+}
+
+type webMode string
+
+const (
+	webModeCommand   webMode = "command"
+	webModeWasmserve webMode = "wasmserve"
+)
+
+func startWeb(ctx context.Context, root string, cfg config.Config, status *process.Status) (*process.Command, webMode, error) {
+	if cfg.UsesWebCommand() {
+		cmd, err := process.StartCommand(ctx, root, cfg.WebCommand(), "web", status, nil)
+		return cmd, webModeCommand, err
+	}
+	if err := tools.CheckWasmserve(nil); err != nil {
+		return nil, "", err
+	}
+	wasmserveDir, wasmserveTarget, err := wasmserveWorkingDirAndTarget(root, cfg)
+	if err != nil {
+		return nil, "", err
+	}
+	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), wasmserveTarget)
+	if err != nil {
+		return nil, "", err
+	}
+	cmd, err := process.StartArgs(ctx, wasmserveDir, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
+	return cmd, webModeWasmserve, err
+}
+
+func printBuildResult(out io.Writer, result build.Result) {
+	if result.Err != nil {
+		fmt.Fprintln(out, "build\tfailed\t"+result.Err.Error())
+		return
+	}
+	fmt.Fprintln(out, "build\tok\t"+result.Duration.String())
+}
+
+func webServiceName(mode webMode) string {
+	if mode == webModeCommand {
+		return "web"
+	}
+	return "wasmserve"
 }
 
 // isGeneratedBuildOutput prevents rebuild loops when the builder writes
