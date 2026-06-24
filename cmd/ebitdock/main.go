@@ -14,6 +14,7 @@ import (
 	"ebitdock/internal/config"
 	"ebitdock/internal/dev"
 	"ebitdock/internal/doctor"
+	"ebitdock/internal/install"
 	"ebitdock/internal/process"
 	"ebitdock/internal/templates"
 )
@@ -26,6 +27,7 @@ Usage:
   ebitdock build wasm
   ebitdock logs
   ebitdock doctor
+  ebitdock install tools
 `
 
 func main() {
@@ -97,6 +99,11 @@ func run(args []string) error {
 			return err
 		}
 		return doctor.Run(os.Stdout, root)
+	case "install":
+		if len(args) != 2 || args[1] != "tools" {
+			return errors.New("usage: ebitdock install tools")
+		}
+		return install.RunTools(context.Background(), os.Stdout)
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], strings.TrimSpace(usage))
 	}

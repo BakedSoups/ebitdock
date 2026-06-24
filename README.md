@@ -10,15 +10,32 @@ It does not require Node.js, Docker, or a generated browser framework. Your proj
 
 ## Install
 
+Required tools:
+
+```text
+go          Go toolchain, used to install ebitdock and build WASM
+wasmserve   Ebitengine WASM dev server used by ebitdock dev
+```
+
+Install `ebitdock` from this repo:
+
 ```sh
 go install ./cmd/ebitdock
 ```
 
-`ebitdock dev` uses `wasmserve` as the browser game runner:
+Then install ebitdock's dev tools:
+
+```sh
+ebitdock install tools
+```
+
+That currently installs:
 
 ```sh
 go install github.com/hajimehoshi/wasmserve@latest
 ```
+
+You can also run that command manually if you prefer.
 
 During local development:
 
@@ -68,6 +85,7 @@ ebitdock dev
 ebitdock build wasm
 ebitdock logs
 ebitdock doctor
+ebitdock install tools
 ```
 
 ## Project Model
@@ -132,13 +150,13 @@ watch:
     - ./static/**
 ```
 
-`watch.rebuild` triggers a WASM rebuild during `dev`.
+`watch.rebuild` is watched during `dev`; changes are logged and ebitdock notifies `wasmserve`.
 
-`watch.static` is logged as a static file change. `ebitdock` does not inject browser reload code; refresh or use your own web tooling if needed.
+`watch.static` is watched as part of the user-owned static web app and also notifies `wasmserve`.
 
 ## Dev Mode
 
-`ebitdock dev` starts `wasmserve`, the dashboard server, optional API command, watcher, and project-local logging.
+`ebitdock dev` starts `wasmserve`, the dashboard server, optional API command, watcher, and project-local logging. `wasmserve` runs from `services.web.root`, so it serves the project-owned browser app.
 
 For this config:
 
@@ -154,13 +172,14 @@ services:
 dev mode runs:
 
 ```sh
-wasmserve -http :8080 ./cmd/game
+cd ./static
+wasmserve -http :8080 ../cmd/game
 ```
 
 If `wasmserve` is missing, install it with:
 
 ```sh
-go install github.com/hajimehoshi/wasmserve@latest
+ebitdock install tools
 ```
 
 Startup output is an aligned table:
@@ -173,7 +192,29 @@ backend    disabled  -
 watch      active    6 patterns
 ```
 
-Source and static file changes are logged during dev. `wasmserve` owns browser-target rebuilds.
+Source and static file changes are printed, logged, and sent to `wasmserve` through `/_notify`.
+
+For `wasmserve` to handle dev builds itself, the browser shell must request `main.wasm` during local development. `wasmserve` does not have a flag for a custom dev WASM filename; `game.wasm` is the explicit output used by `ebitdock build wasm`.
+
+A user-owned shell can branch on localhost:
+
+```html
+<script>
+  const wasmPath = ["localhost", "127.0.0.1"].includes(location.hostname)
+    ? "main.wasm"
+    : "game.wasm";
+
+  const go = new Go();
+  WebAssembly.instantiateStreaming(fetch(wasmPath), go.importObject)
+    .then((result) => go.run(result.instance));
+
+  if (wasmPath === "main.wasm") {
+    fetch("/_wait").then((res) => {
+      if (res.ok) location.reload();
+    });
+  }
+</script>
+```
 
 ## Build
 
@@ -204,8 +245,16 @@ go          ok        go1.24.4 linux/amd64
 wasmserve   ok        /home/alex/go/bin/wasmserve
 game        ok        ./cmd/game
 web         ok        ./static
+shell       ok        wasmserve dev hooks
 dashboard   ok        :8081
 api         disabled  -
+```
+
+If the browser shell is not wired for wasmserve dev mode, `doctor` reports the exact issue:
+
+```text
+shell       warn      static/index.html loads game.wasm; wasmserve rebuilds only main.wasm during dev
+shell       warn      static/index.html does not wait on /_wait; /_notify will not auto-reload the browser
 ```
 
 ## GitHub Checks

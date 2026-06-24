@@ -2,6 +2,7 @@ package dev
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,11 +26,15 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	if err := tools.CheckWasmserve(nil); err != nil {
 		return err
 	}
-	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), cfg.Game.Package)
+	wasmserveDir, wasmserveTarget, err := wasmserveWorkingDirAndTarget(root, cfg)
 	if err != nil {
 		return err
 	}
-	wasmserve, err := process.StartArgs(ctx, root, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
+	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), wasmserveTarget)
+	if err != nil {
+		return err
+	}
+	wasmserve, err := process.StartArgs(ctx, wasmserveDir, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
 	if err != nil {
 		return err
 	}
@@ -64,6 +69,10 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 		return err
 	}
 	cliui.DevStatus(os.Stdout, cfg)
+	for _, hint := range tools.BrowserShellHints(root, cfg.StaticRoot()) {
+		status.AppendLog("dev hint: " + hint)
+		fmt.Fprintln(os.Stdout, "warn\t"+hint)
+	}
 
 	for {
 		select {
@@ -89,11 +98,19 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 				continue
 			}
 			status.AppendLog("change detected: " + path)
+			fmt.Fprintln(os.Stdout, "change\t"+path)
 			if isStaticSourceChange(root, cfg, path) {
 				status.AppendLog("static file changed")
-				continue
+			} else {
+				status.AppendLog("source file changed; notifying wasmserve")
 			}
-			status.AppendLog("source file changed; wasmserve will rebuild on refresh")
+			if err := tools.NotifyWasmserve(ctx, cfg.WebPort()); err != nil {
+				status.AppendLog("wasmserve notify failed: " + err.Error())
+				fmt.Fprintln(os.Stdout, "notify\tfailed\t"+err.Error())
+			} else {
+				status.AppendLog("wasmserve notified")
+				fmt.Fprintln(os.Stdout, "notify\tok")
+			}
 		}
 	}
 }
@@ -124,6 +141,45 @@ func isStaticSourceChange(root string, cfg config.Config, path string) bool {
 		return false
 	}
 	return containsPath(root, cfg.StaticRoot(), abs)
+}
+
+func wasmserveWorkingDirAndTarget(root string, cfg config.Config) (dir, target string, err error) {
+	staticDir, err := filepath.Abs(filepath.Join(root, cfg.StaticRoot()))
+	if err != nil {
+		return "", "", err
+	}
+	if info, err := os.Stat(staticDir); err != nil {
+		if os.IsNotExist(err) {
+			return "", "", fmt.Errorf("services.web.root %q does not exist\nresolved path: %s\ncreate it or update services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
+		}
+		return "", "", fmt.Errorf("check services.web.root %q at %s: %w", cfg.StaticRoot(), staticDir, err)
+	} else if !info.IsDir() {
+		return "", "", fmt.Errorf("services.web.root %q is not a directory\nresolved path: %s\nupdate services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
+	}
+
+	if !isLocalPackage(cfg.Game.Package) {
+		return staticDir, cfg.Game.Package, nil
+	}
+	gameDir, err := filepath.Abs(filepath.Join(root, cfg.Game.Package))
+	if err != nil {
+		return "", "", err
+	}
+	rel, err := filepath.Rel(staticDir, gameDir)
+	if err != nil {
+		return "", "", err
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." {
+		return staticDir, ".", nil
+	}
+	if !strings.HasPrefix(rel, ".") {
+		rel = "./" + rel
+	}
+	return staticDir, rel, nil
+}
+
+func isLocalPackage(pkg string) bool {
+	return pkg == "." || strings.HasPrefix(pkg, "./") || strings.HasPrefix(pkg, "../") || filepath.IsAbs(pkg)
 }
 
 // containsPath is a path-containment check based on filepath.Rel, avoiding

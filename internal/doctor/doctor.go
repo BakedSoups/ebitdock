@@ -49,10 +49,18 @@ func Run(w io.Writer, root string) error {
 		fmt.Fprintf(tw, "game\tok\t%s\n", detail)
 	}
 
-	if existsDir(filepath.Join(root, cfg.StaticRoot())) {
+	staticPath := filepath.Join(root, cfg.StaticRoot())
+	if existsDir(staticPath) {
 		fmt.Fprintf(tw, "web\tok\t%s\n", cfg.StaticRoot())
 	} else {
-		fmt.Fprintf(tw, "web\twarn\t%s does not exist\n", cfg.StaticRoot())
+		fmt.Fprintf(tw, "web\twarn\t%s does not exist at %s\n", cfg.StaticRoot(), staticPath)
+	}
+	if hints := tools.BrowserShellHints(root, cfg.StaticRoot()); len(hints) == 0 {
+		fmt.Fprintln(tw, "shell\tok\twasmserve dev hooks")
+	} else {
+		for _, hint := range hints {
+			fmt.Fprintf(tw, "shell\twarn\t%s\n", hint)
+		}
 	}
 
 	fmt.Fprintf(tw, "dashboard\tok\t:%d\n", cfg.DashboardPort())

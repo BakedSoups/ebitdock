@@ -2,6 +2,8 @@ package tools
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -60,5 +62,36 @@ func TestCheckWasmserveFound(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBrowserShellHintsWarnForGameWASMAndMissingWait(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "static"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "static", "index.html"), []byte(`<script>fetch("game.wasm")</script>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	hints := strings.Join(BrowserShellHints(root, "./static"), "\n")
+	for _, want := range []string{"game.wasm", "main.wasm", "/_wait", "/_notify"} {
+		if !strings.Contains(hints, want) {
+			t.Fatalf("hints %q did not contain %q", hints, want)
+		}
+	}
+}
+
+func TestBrowserShellHintsAcceptWasmserveShell(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "static"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "static", "index.html"), []byte(`<script>fetch("main.wasm"); fetch("/_wait")</script>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if hints := BrowserShellHints(root, filepath.Join(".", "static")); len(hints) != 0 {
+		t.Fatalf("hints = %#v, want none", hints)
 	}
 }
