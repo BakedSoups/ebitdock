@@ -23,6 +23,7 @@ const usage = `ebitdock manages the web shell around an Ebitengine WASM game.
 Usage:
   ebitdock init [name|.]
   ebitdock dev
+  ebitdock wasm
   ebitdock build wasm
   ebitdock logs
   ebitdock doctor
@@ -65,18 +66,12 @@ func run(args []string) error {
 		if len(args) != 2 || args[1] != "wasm" {
 			return errors.New("usage: ebitdock build wasm")
 		}
-		cfg, root, err := loadProject()
-		if err != nil {
-			return err
+		return runWASMBuild()
+	case "wasm":
+		if len(args) != 1 {
+			return errors.New("usage: ebitdock wasm")
 		}
-		status := newStatus(root, cfg)
-		result := build.WASM(context.Background(), root, cfg, status)
-		fmt.Print(result.Log)
-		if result.Err != nil {
-			return result.Err
-		}
-		fmt.Printf("built %s in %s\n", cfg.Game.Output, result.Duration)
-		return nil
+		return runWASMBuild()
 	case "logs":
 		_, root, err := loadProject()
 		if err != nil {
@@ -100,6 +95,21 @@ func run(args []string) error {
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], strings.TrimSpace(usage))
 	}
+}
+
+func runWASMBuild() error {
+	cfg, root, err := loadProject()
+	if err != nil {
+		return err
+	}
+	status := newStatus(root, cfg)
+	result := build.WASM(context.Background(), root, cfg, status)
+	fmt.Print(result.Log)
+	if result.Err != nil {
+		return result.Err
+	}
+	fmt.Printf("built %s in %s\n", cfg.Game.Output, result.Duration)
+	return nil
 }
 
 // newStatus creates the shared dashboard/log state for commands that operate on

@@ -31,6 +31,7 @@ export PATH="$HOME/go/bin:$PATH"
 ```sh
 ebitdock init [name|.]
 ebitdock dev
+ebitdock wasm
 ebitdock build wasm
 ebitdock logs
 ebitdock doctor
@@ -54,6 +55,14 @@ Then run:
 ebitdock doctor
 ebitdock dev
 ```
+
+To compile only the browser build:
+
+```sh
+ebitdock wasm
+```
+
+`ebitdock build wasm` is the longer equivalent.
 
 ## What Dev Does
 
