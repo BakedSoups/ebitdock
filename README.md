@@ -2,7 +2,7 @@
 
 `ebitdock` is a Go-native dev orchestrator for Ebitengine browser games.
 
-It is built around Go, Ebitengine, WebAssembly, and Docker Compose. It gives browser games a repeatable local stack for the web client, WASM build, backend APIs, realtime services, databases, ports, logs, and a dev dashboard.
+It is built around Go, Ebitengine, WebAssembly, wasmserve, and Docker Compose. It gives browser games a repeatable local stack for the web client, WASM build, backend APIs, realtime services, databases, ports, logs, and a dev dashboard.
 
 It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases.
 
@@ -10,6 +10,7 @@ It does not generate your web app, hide Ebitengine, require Node.js, or become a
 
 - Go
 - Docker with the Compose plugin
+- wasmserve
 - Linux/macOS first
 
 ## Install
@@ -18,6 +19,7 @@ From this repo:
 
 ```sh
 go install ./cmd/ebitdock
+go install github.com/hajimehoshi/wasmserve@latest
 ```
 
 Make sure Go's bin directory is on your PATH:
@@ -31,6 +33,7 @@ export PATH="$HOME/go/bin:$PATH"
 ```sh
 ebitdock init [name|.]
 ebitdock dev
+ebitdock down
 ebitdock wasm
 ebitdock build wasm
 ebitdock logs
@@ -68,6 +71,7 @@ ebitdock wasm
 
 `ebitdock dev`:
 
+- verifies `wasmserve` is installed for Ebitengine browser dev diagnostics
 - builds your Ebitengine game to WASM in a Go Docker container
 - copies the matching `wasm_exec.js` from that same Go image
 - writes `.ebitdock/compose.yaml`
@@ -77,6 +81,12 @@ ebitdock wasm
 - writes logs to `.ebitdock/ebitdock.log`
 
 The dashboard shows ports, build/check status, watched paths, errors, and recent logs.
+
+To stop the containers and release the ports opened by the ebitdock Compose stack:
+
+```sh
+ebitdock down
+```
 
 ## Example Config
 
@@ -126,7 +136,7 @@ watch:
 
 ## Why This Helps
 
-Ebitengine keeps the game loop Go-native and lightweight. `ebitdock` handles the surrounding dev orchestration: containerized WASM builds, static web serving, service ports, logs, health, databases, realtime backends, and dashboard visibility.
+Ebitengine keeps the game loop Go-native and lightweight. `ebitdock` handles the surrounding dev orchestration: containerized WASM builds, wasmserve-aware browser diagnostics, static web serving, service ports, logs, health, databases, realtime backends, and dashboard visibility.
 
 That makes it useful for simple browser builds and especially for live-service games that need more than one process.
 

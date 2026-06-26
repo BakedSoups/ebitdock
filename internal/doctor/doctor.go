@@ -44,15 +44,15 @@ func Run(w io.Writer, root string) error {
 			fmt.Fprintf(tw, "docker\tok\t%s\n", path)
 		}
 		fmt.Fprintf(tw, "compose\tok\t%s\n", cfg.ComposeFile())
-	} else if cfg.UsesWebCommand() {
-		fmt.Fprintf(tw, "wasmserve\tskipped\tservices.web.command: %s\n", cfg.WebCommand())
 	} else {
-		if path, err := exec.LookPath("wasmserve"); err != nil {
-			fmt.Fprintf(tw, "wasmserve\tfailed\tinstall with: %s\n", tools.WasmserveInstallCommand)
-			hasProblems = true
-		} else {
-			fmt.Fprintf(tw, "wasmserve\tok\t%s\n", path)
-		}
+		fmt.Fprintln(tw, "docker\tskipped\tdocker.mode local")
+	}
+
+	if path, err := exec.LookPath("wasmserve"); err != nil {
+		fmt.Fprintf(tw, "wasmserve\tfailed\tinstall with: %s\n", tools.WasmserveInstallCommand)
+		hasProblems = true
+	} else {
+		fmt.Fprintf(tw, "wasmserve\tok\t%s\n", path)
 	}
 
 	if detail, ok := packageDetail(root, cfg.Game.Package); !ok {

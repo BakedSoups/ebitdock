@@ -28,6 +28,10 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
 	status.AppendLog("dev starting")
+	if err := tools.CheckWasmserve(nil); err != nil {
+		return err
+	}
+	status.AppendLog("wasmserve ready")
 	if cfg.DockerEnabled() {
 		return runDocker(ctx, root, cfg, status)
 	}
@@ -259,6 +263,9 @@ func startWeb(ctx context.Context, root string, cfg config.Config, status *proce
 
 func printBuildResult(out io.Writer, result build.Result) {
 	cliui.Result(out, "build", result.Duration, result.Err)
+	if result.Err != nil {
+		printStepLog(out, result.Log)
+	}
 }
 
 func checkedBuild(ctx context.Context, root string, cfg config.Config, status *process.Status, out io.Writer) error {
@@ -281,6 +288,17 @@ func checkedBuild(ctx context.Context, root string, cfg config.Config, status *p
 
 func printCheckResult(out io.Writer, result checks.Result) {
 	cliui.Result(out, "check", result.Duration, result.Err)
+	if result.Err != nil {
+		printStepLog(out, result.Log)
+	}
+}
+
+func printStepLog(out io.Writer, logText string) {
+	logText = strings.TrimSpace(logText)
+	if logText == "" {
+		return
+	}
+	fmt.Fprintln(out, logText)
 }
 
 func webServiceName(mode webMode) string {

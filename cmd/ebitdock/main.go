@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"ebitdock/internal/build"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dev"
+	dock "ebitdock/internal/docker"
 	"ebitdock/internal/doctor"
 	"ebitdock/internal/process"
 	"ebitdock/internal/templates"
@@ -23,6 +25,7 @@ const usage = `ebitdock manages the web shell around an Ebitengine WASM game.
 Usage:
   ebitdock init [name|.]
   ebitdock dev
+  ebitdock down
   ebitdock wasm
   ebitdock build wasm
   ebitdock logs
@@ -62,6 +65,11 @@ func run(args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return dev.Run(ctx, root, cfg)
+	case "down":
+		if len(args) != 1 {
+			return errors.New("usage: ebitdock down")
+		}
+		return runDown()
 	case "build":
 		if len(args) != 2 || args[1] != "wasm" {
 			return errors.New("usage: ebitdock build wasm")
@@ -109,6 +117,29 @@ func runWASMBuild() error {
 		return result.Err
 	}
 	fmt.Printf("built %s in %s\n", cfg.Game.Output, result.Duration)
+	return nil
+}
+
+func runDown() error {
+	cfg, root, err := loadProject()
+	if err != nil {
+		return err
+	}
+	if err := dock.RequireDocker(nil); err != nil {
+		return err
+	}
+	name, args, err := dock.ComposeCommand(cfg.ComposeFile(), "down", "--remove-orphans")
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(name, args...)
+	cmd.Dir = root
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker compose down failed: %w", err)
+	}
+	fmt.Printf("stopped %s\n", cfg.ComposeFile())
 	return nil
 }
 
