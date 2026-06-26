@@ -16,6 +16,7 @@ type Config struct {
 	Project   string          `yaml:"project"`
 	Game      GameConfig      `yaml:"game"`
 	WASM      WASMConfig      `yaml:"wasm"`
+	Docker    DockerConfig    `yaml:"docker"`
 	Services  ServicesConfig  `yaml:"services"`
 	Checks    ChecksConfig    `yaml:"checks"`
 	Dashboard DashboardConfig `yaml:"dashboard"`
@@ -46,6 +47,13 @@ type WASMConfig struct {
 	Exec string `yaml:"exec"`
 }
 
+// DockerConfig controls how ebitdock generates and runs docker compose files.
+type DockerConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	ComposeFile string `yaml:"compose_file"`
+	GoImage     string `yaml:"go_image"`
+}
+
 // ChecksConfig contains optional commands that gate dev/build workflows.
 type ChecksConfig struct {
 	BeforeRebuild CheckConfig `yaml:"before_rebuild"`
@@ -66,11 +74,16 @@ type ServicesConfig struct {
 // ServiceConfig is shared by static web service and optional API process. Some
 // fields are only meaningful for one service type.
 type ServiceConfig struct {
-	Enabled bool         `yaml:"enabled"`
-	Command string       `yaml:"command"`
-	Root    string       `yaml:"root"`
-	Port    int          `yaml:"port"`
-	Ports   []PortConfig `yaml:"ports"`
+	Enabled    bool              `yaml:"enabled"`
+	Command    string            `yaml:"command"`
+	Root       string            `yaml:"root"`
+	Port       int               `yaml:"port"`
+	Ports      []PortConfig      `yaml:"ports"`
+	Image      string            `yaml:"image"`
+	Dockerfile string            `yaml:"dockerfile"`
+	Workdir    string            `yaml:"workdir"`
+	Env        map[string]string `yaml:"env"`
+	Volumes    []string          `yaml:"volumes"`
 }
 
 // PortConfig describes one dashboard-visible port exposed by a service.
@@ -168,6 +181,12 @@ func (c *Config) SetDefaults() {
 	if c.WASM.Exec == "" {
 		c.WASM.Exec = "./static/wasm_exec.js"
 	}
+	if c.Docker.ComposeFile == "" {
+		c.Docker.ComposeFile = ".ebitdock/compose.yaml"
+	}
+	if c.Docker.GoImage == "" {
+		c.Docker.GoImage = "golang:1.22"
+	}
 	if c.Checks.BeforeRebuild.Command == "" {
 		c.Checks.BeforeRebuild.Command = "go test " + c.Game.Package
 	}
@@ -176,6 +195,15 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Services.Web.Root == "" {
 		c.Services.Web.Root = "./static"
+	}
+	if c.Services.Web.Image == "" {
+		c.Services.Web.Image = "nginx:1.27-alpine"
+	}
+	if c.Services.Web.Workdir == "" {
+		c.Services.Web.Workdir = "/usr/share/nginx/html"
+	}
+	if len(c.Services.Web.Volumes) == 0 {
+		c.Services.Web.Volumes = []string{c.Services.Web.Root + ":/usr/share/nginx/html:ro"}
 	}
 	if c.Services.Web.Port == 0 {
 		c.Services.Web.Port = c.Web.Port
@@ -195,6 +223,15 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Services.API.Command == "" {
 		c.Services.API.Command = "go run ./server"
+	}
+	if c.Services.API.Image == "" {
+		c.Services.API.Image = c.Docker.GoImage
+	}
+	if c.Services.API.Workdir == "" {
+		c.Services.API.Workdir = "/app"
+	}
+	if len(c.Services.API.Volumes) == 0 {
+		c.Services.API.Volumes = []string{".:/app"}
 	}
 	if !c.Services.API.Enabled {
 		c.Services.API.Enabled = c.Server.Enabled
@@ -253,6 +290,21 @@ func (c Config) Validate() error {
 		return fmt.Errorf("game.package, game.output, and services.web.root are required")
 	}
 	return nil
+}
+
+// DockerEnabled reports whether dev should use docker compose for services.
+func (c Config) DockerEnabled() bool {
+	return c.Docker.Enabled
+}
+
+// ComposeFile returns the project-local docker compose file ebitdock manages.
+func (c Config) ComposeFile() string {
+	return c.Docker.ComposeFile
+}
+
+// GoImage returns the Go image used for containerized tool commands.
+func (c Config) GoImage() string {
+	return c.Docker.GoImage
 }
 
 // StaticRoot returns the directory served as the browser app.

@@ -19,6 +19,15 @@ func TestDefaults(t *testing.T) {
 	if cfg.Game.Output == "" || cfg.WASMExecPath() == "" || len(cfg.WatchPatterns()) == 0 {
 		t.Fatalf("defaults were not populated: %+v", cfg)
 	}
+	if cfg.ComposeFile() != ".ebitdock/compose.yaml" {
+		t.Fatalf("ComposeFile() = %q, want .ebitdock/compose.yaml", cfg.ComposeFile())
+	}
+	if cfg.GoImage() != "golang:1.22" {
+		t.Fatalf("GoImage() = %q, want golang:1.22", cfg.GoImage())
+	}
+	if cfg.Services.Web.Image != "nginx:1.27-alpine" {
+		t.Fatalf("web image = %q, want nginx:1.27-alpine", cfg.Services.Web.Image)
+	}
 }
 
 func TestWebCommand(t *testing.T) {
@@ -34,6 +43,35 @@ func TestWebCommand(t *testing.T) {
 	}
 	if cfg.WebCommand() != "go run ." {
 		t.Fatalf("WebCommand() = %q, want go run .", cfg.WebCommand())
+	}
+}
+
+func TestDockerServiceFieldsArePreserved(t *testing.T) {
+	cfg := Config{
+		Project: "demo",
+		Docker:  DockerConfig{Enabled: true, ComposeFile: "./compose.dev.yaml", GoImage: "golang:1.25"},
+		Services: ServicesConfig{
+			Web: ServiceConfig{
+				Image:   "caddy:2",
+				Workdir: "/srv",
+				Volumes: []string{"./public:/srv:ro"},
+				Env:     map[string]string{"MODE": "dev"},
+			},
+		},
+	}
+	cfg.SetDefaults()
+	if !cfg.DockerEnabled() {
+		t.Fatal("DockerEnabled() = false, want true")
+	}
+	if cfg.ComposeFile() != "./compose.dev.yaml" {
+		t.Fatalf("ComposeFile() = %q, want ./compose.dev.yaml", cfg.ComposeFile())
+	}
+	if cfg.Services.Web.Image != "caddy:2" || cfg.Services.Web.Workdir != "/srv" {
+		t.Fatalf("web docker fields not preserved: %+v", cfg.Services.Web)
+	}
+	assertStrings(t, cfg.Services.Web.Volumes, []string{"./public:/srv:ro"})
+	if cfg.Services.Web.Env["MODE"] != "dev" {
+		t.Fatalf("web env not preserved: %+v", cfg.Services.Web.Env)
 	}
 }
 
@@ -104,5 +142,12 @@ func assertPorts(t *testing.T, got, want []PortConfig) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ports = %#v, want %#v", got, want)
+	}
+}
+
+func assertStrings(t *testing.T, got, want []string) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("strings = %#v, want %#v", got, want)
 	}
 }

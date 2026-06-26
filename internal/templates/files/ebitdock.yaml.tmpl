@@ -7,6 +7,11 @@ game:
 wasm:
   exec: {{ .WASMExec }}
 
+docker:
+  enabled: true
+  compose_file: ./.ebitdock/compose.yaml
+  go_image: golang:1.22
+
 checks:
   before_rebuild:
     enabled: false
@@ -16,6 +21,10 @@ services:
   web:
     root: {{ .StaticRoot }}
     port: {{ .WebPort }}
+    image: nginx:1.27-alpine
+    workdir: /usr/share/nginx/html
+    volumes:
+      - {{ .StaticRoot }}:/usr/share/nginx/html:ro
     ports:
       - name: web
         port: {{ .WebPort }}
@@ -26,6 +35,10 @@ services:
     enabled: false
     command: go run ./server
     port: 3001
+    image: golang:1.22
+    workdir: /app
+    volumes:
+      - .:/app
     ports:
       - name: api
         port: 3001
