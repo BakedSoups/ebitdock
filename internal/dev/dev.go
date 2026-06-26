@@ -101,6 +101,7 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 			if isGeneratedBuildOutput(root, cfg, path) {
 				continue
 			}
+			status.SetLastChange(path)
 			status.AppendLog("change detected: " + path)
 			fmt.Fprintln(os.Stdout, "change\t"+path)
 			if isStaticSourceChange(root, cfg, path) {
@@ -196,6 +197,7 @@ func runDocker(ctx context.Context, root string, cfg config.Config, status *proc
 			if path == "" || isGeneratedBuildOutput(root, cfg, path) {
 				continue
 			}
+			status.SetLastChange(path)
 			status.AppendLog("change detected: " + path)
 			fmt.Fprintln(os.Stdout, "change\t"+path)
 			if isStaticSourceChange(root, cfg, path) {
@@ -256,33 +258,29 @@ func startWeb(ctx context.Context, root string, cfg config.Config, status *proce
 }
 
 func printBuildResult(out io.Writer, result build.Result) {
-	if result.Err != nil {
-		fmt.Fprintln(out, "build\tfailed\t"+result.Err.Error())
-		return
-	}
-	fmt.Fprintln(out, "build\tok\t"+result.Duration.String())
+	cliui.Result(out, "build", result.Duration, result.Err)
 }
 
 func checkedBuild(ctx context.Context, root string, cfg config.Config, status *process.Status, out io.Writer) error {
 	if cfg.BeforeRebuildCheckEnabled() {
+		activity := cliui.StartActivity(out, "check", "running", cfg.BeforeRebuildCheckCommand())
 		result := checks.Run(ctx, root, cfg.BeforeRebuildCheckCommand(), status)
+		activity.Stop()
 		printCheckResult(out, result)
 		if result.Err != nil {
 			return result.Err
 		}
 	}
 	status.AppendLog("rebuilding wasm")
+	activity := cliui.StartActivity(out, "build", "running", fmt.Sprintf("GOOS=js GOARCH=wasm go build -o %s %s", cfg.Game.Output, cfg.Game.Package))
 	result := build.WASM(ctx, root, cfg, status)
+	activity.Stop()
 	printBuildResult(out, result)
 	return result.Err
 }
 
 func printCheckResult(out io.Writer, result checks.Result) {
-	if result.Err != nil {
-		fmt.Fprintln(out, "check\tfailed\t"+result.Err.Error())
-		return
-	}
-	fmt.Fprintln(out, "check\tok\t"+result.Duration.String())
+	cliui.Result(out, "check", result.Duration, result.Err)
 }
 
 func webServiceName(mode webMode) string {
@@ -307,7 +305,7 @@ func isGeneratedBuildOutput(root string, cfg config.Config, path string) bool {
 	if err != nil {
 		return false
 	}
-	return abs == output || abs == wasmExec
+	return abs == output || abs == wasmExec || strings.HasPrefix(abs, output+"-go-tmp-")
 }
 
 // isStaticSourceChange reports whether a changed file belongs to the configured

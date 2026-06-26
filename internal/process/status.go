@@ -45,6 +45,8 @@ type state struct {
 	CheckDuration string          `json:"checkDuration"`
 	BuildStatus   string          `json:"buildStatus"`
 	BuildDuration string          `json:"buildDuration"`
+	BuildLog      string          `json:"buildLog"`
+	LastChange    string          `json:"lastChange"`
 	LastBuildAt   time.Time       `json:"lastBuildAt"`
 	CurrentErrors []string        `json:"currentErrors"`
 	Watched       []string        `json:"watched"`
@@ -120,6 +122,20 @@ func (s *Status) SetBuild(status, duration string, err error) {
 	} else {
 		s.CurrentErrors = nil
 	}
+}
+
+// SetBuildLog records the latest raw build output for dashboard debugging.
+func (s *Status) SetBuildLog(logText string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.BuildLog = logText
+}
+
+// SetLastChange records the latest watched path that triggered dev activity.
+func (s *Status) SetLastChange(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.LastChange = path
 }
 
 // SetServer records the optional backend process state.

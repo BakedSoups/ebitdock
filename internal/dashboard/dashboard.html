@@ -7,96 +7,156 @@
   <style>
     :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0e1114; color: #d6dee5; }
     body { margin: 0; }
-    main { max-width: 1040px; margin: 0 auto; padding: 18px; }
-    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #29313a; padding-bottom: 10px; margin-bottom: 14px; }
-    h1 { font-size: 18px; margin: 0; font-weight: 700; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-    section { border: 1px solid #29313a; background: #14191f; padding: 12px; min-height: 82px; }
-    h2 { margin: 0 0 9px; font-size: 12px; color: #8fa0ad; text-transform: uppercase; font-weight: 600; }
-    .value { font-size: 18px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 18px; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 18px; border-bottom: 1px solid #29313a; padding-bottom: 10px; margin-bottom: 12px; }
+    h1 { font-size: 19px; margin: 0; font-weight: 700; }
+    h2 { margin: 0 0 10px; font-size: 12px; color: #8fa0ad; text-transform: uppercase; font-weight: 600; }
+    section { border: 1px solid #29313a; background: #14191f; padding: 12px; }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #5fd1c1; margin-right: 8px; }
     .bad { background: #ff6978; }
     .muted { color: #8795a1; }
-    .wide { grid-column: span 2; }
-    .full { grid-column: 1 / -1; }
+    .summary { display: block; margin-top: 4px; color: #8795a1; font-size: 12px; }
+    .status-strip { display: grid; grid-template-columns: 1.35fr repeat(4, minmax(120px, .75fr)); gap: 8px; margin-bottom: 10px; }
+    .chip { border: 1px solid #29313a; background: #10151a; padding: 9px 10px; min-width: 0; }
+    .chip strong { display: block; color: #8fa0ad; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }
+    .chip span, .chip a { font-size: 13px; }
+    .chip a { color: #5fd1c1; text-decoration: none; word-break: break-all; }
+    .chip a:hover { text-decoration: underline; }
+    .layout { display: grid; grid-template-columns: minmax(340px, .86fr) minmax(0, 1.35fr); gap: 10px; align-items: start; }
+    .panel { min-height: 0; }
+    .details-panel { grid-column: 1 / -1; border: 1px solid #29313a; background: #14191f; padding: 10px 12px; }
+    .details-panel summary { color: #8fa0ad; cursor: pointer; font-size: 12px; text-transform: uppercase; }
+    .diagnostics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
     pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 12px; line-height: 1.45; max-height: 280px; overflow: auto; }
     ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; }
-    .ports { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-    .port { border: 1px solid #29313a; padding: 9px; background: #10151a; }
-    .port strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .ports { display: grid; gap: 6px; }
+    .port { display: grid; grid-template-columns: minmax(90px, 1fr) 62px; gap: 6px 10px; align-items: baseline; border: 1px solid #29313a; padding: 9px 10px; background: #10151a; }
+    .port strong { font-size: 13px; }
+    .port-code { color: #d6dee5; text-align: right; }
     .port a { color: #5fd1c1; text-decoration: none; word-break: break-all; }
-    .bar { height: 6px; background: #242c34; margin-top: 10px; overflow: hidden; }
+    .port a:hover { text-decoration: underline; }
+    .status { appearance: none; border: 0; background: transparent; color: #8fa0ad; text-align: right; font: inherit; padding: 0; cursor: pointer; }
+    .status:hover, .status.active { color: #5fd1c1; text-decoration: underline; }
+    .log-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .log-tab { border: 1px solid #29313a; background: #10151a; color: #d6dee5; font: inherit; font-size: 12px; padding: 7px 9px; cursor: pointer; }
+    .log-tab.active { border-color: #5fd1c1; color: #5fd1c1; }
+    .log-grid { display: grid; gap: 10px; }
+    .log-panel { border: 1px solid #29313a; background: #10151a; }
+    .log-head { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #29313a; color: #8fa0ad; font-size: 12px; text-transform: uppercase; }
+    .log-panel pre { padding: 10px; max-height: 520px; min-height: 360px; }
+    .build-panel { margin-bottom: 10px; }
+    .build-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .build-item { border: 1px solid #29313a; background: #10151a; padding: 8px 10px; min-width: 0; }
+    .build-item strong { display: block; color: #8fa0ad; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }
+    .build-item span { font-size: 12px; word-break: break-all; }
+    .build-log { padding: 10px; background: #080c10; border: 1px solid #29313a; max-height: 160px; min-height: 42px; }
+    .bar { height: 6px; background: #242c34; margin-top: 7px; overflow: hidden; }
     .bar span { display: block; height: 100%; width: 100%; background: #5fd1c1; }
-    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } }
+    @media (max-width: 900px) {
+      .status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout, .diagnostics { grid-template-columns: 1fr; }
+      .log-panel pre { min-height: 260px; }
+    }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <h1>{{ .Project }}</h1>
+      <div>
+        <h1>{{ .Project }}</h1>
+        <span id="summary" class="summary">starting</span>
+      </div>
       <span class="muted">ebitdock</span>
     </header>
-    <div class="grid">
-      <section>
-        <h2>Web</h2>
-        <div id="web-port" class="value">:{{ .WebPort }}</div>
-      </section>
-      <section>
-        <h2>Backend</h2>
-        <div><span id="backend-dot" class="dot {{ if ne .ServerStatus "running" }}bad{{ end }}"></span><span id="backend-status">{{ .ServerStatus }}</span></div>
-        <div id="server-port" class="muted">:{{ .ServerPort }}</div>
-      </section>
-      <section>
-        <h2>Check</h2>
-        <div><span id="check-dot" class="dot {{ if eq .CheckStatus "failed" }}bad{{ end }}"></span><span id="check-status">{{ .CheckStatus }}</span></div>
-        <div id="check-duration" class="muted">{{ .CheckDuration }}</div>
-      </section>
-      <section>
-        <h2>WASM Build</h2>
-        <div><span id="build-dot" class="dot {{ if eq .BuildStatus "failed" }}bad{{ end }}"></span><span id="build-status">{{ .BuildStatus }}</span></div>
+    <div class="status-strip">
+      <div class="chip">
+        <strong>Web</strong>
+        <a id="web-link" href="http://localhost:{{ .WebPort }}/">http://localhost:{{ .WebPort }}/</a>
+      </div>
+      <div class="chip">
+        <strong>Build</strong>
+        <span><span id="build-dot" class="dot {{ if eq .BuildStatus "failed" }}bad{{ end }}"></span><span id="build-status">{{ .BuildStatus }}</span></span>
         <div class="bar"><span></span></div>
-      </section>
-      <section>
-        <h2>Duration</h2>
-        <div id="build-duration" class="value">{{ .BuildDuration }}</div>
-      </section>
-      <section class="wide">
-        <h2>Watched</h2>
-        <ul id="watched">{{ range .Watched }}<li>{{ . }}</li>{{ end }}</ul>
-      </section>
-      <section class="wide">
-        <h2>Errors</h2>
-        <pre id="errors">{{ range .CurrentErrors }}{{ . }}
-{{ else }}none{{ end }}</pre>
-      </section>
-      <section class="full">
+      </div>
+      <div class="chip">
+        <strong>Duration</strong>
+        <span id="build-duration">{{ .BuildDuration }}</span>
+      </div>
+      <div class="chip">
+        <strong>Check</strong>
+        <span><span id="check-dot" class="dot {{ if eq .CheckStatus "failed" }}bad{{ end }}"></span><span id="check-status">{{ .CheckStatus }}</span></span>
+      </div>
+      <div class="chip">
+        <strong>Services</strong>
+        <span><span id="services-dot" class="dot"></span><span id="services-status">configured</span></span>
+      </div>
+    </div>
+    <div class="layout">
+      <section class="panel">
         <h2>Ports</h2>
         <div id="ports" class="ports"></div>
       </section>
-      <section class="full">
-        <h2>Logs</h2>
-        <pre id="logs">{{ range .Logs }}{{ . }}
-{{ end }}</pre>
+      <section class="panel">
+        <h2>Service Logs</h2>
+        <div class="build-panel">
+          <div class="build-grid">
+            <div class="build-item">
+              <strong>WASM</strong>
+              <span><span id="wasm-dot" class="dot"></span><span id="wasm-status">idle</span></span>
+            </div>
+            <div class="build-item">
+              <strong>Triggered By</strong>
+              <span id="last-change">none</span>
+            </div>
+            <div class="build-item">
+              <strong>Duration</strong>
+              <span id="wasm-duration">-</span>
+            </div>
+          </div>
+          <pre id="build-log" class="build-log">no build output</pre>
+        </div>
+        <div id="log-tabs" class="log-tabs"></div>
+        <div id="logs" class="log-grid"></div>
       </section>
+      <details class="details-panel">
+        <summary>Diagnostics</summary>
+        <div class="diagnostics">
+          <div>
+            <h2>Errors</h2>
+            <pre id="errors">{{ range .CurrentErrors }}{{ . }}
+{{ else }}none{{ end }}</pre>
+          </div>
+          <div>
+            <h2>Watched</h2>
+            <ul id="watched">{{ range .Watched }}<li>{{ . }}</li>{{ end }}</ul>
+          </div>
+        </div>
+      </details>
     </div>
   </main>
   <script>
     const els = {
-      webPort: document.getElementById("web-port"),
-      backendDot: document.getElementById("backend-dot"),
-      backendStatus: document.getElementById("backend-status"),
-      serverPort: document.getElementById("server-port"),
+      summary: document.getElementById("summary"),
+      webLink: document.getElementById("web-link"),
+      servicesDot: document.getElementById("services-dot"),
+      servicesStatus: document.getElementById("services-status"),
       checkDot: document.getElementById("check-dot"),
       checkStatus: document.getElementById("check-status"),
-      checkDuration: document.getElementById("check-duration"),
       buildDot: document.getElementById("build-dot"),
       buildStatus: document.getElementById("build-status"),
       buildDuration: document.getElementById("build-duration"),
+      wasmDot: document.getElementById("wasm-dot"),
+      wasmStatus: document.getElementById("wasm-status"),
+      wasmDuration: document.getElementById("wasm-duration"),
+      lastChange: document.getElementById("last-change"),
+      buildLog: document.getElementById("build-log"),
       watched: document.getElementById("watched"),
       ports: document.getElementById("ports"),
+      logTabs: document.getElementById("log-tabs"),
       errors: document.getElementById("errors"),
       logs: document.getElementById("logs")
     };
+    let selectedLog = "global";
 
     function lines(items, fallback) {
       if (!items || items.length === 0) return fallback || "";
@@ -104,16 +164,23 @@
     }
 
     function render(data) {
-      els.webPort.textContent = ":" + data.webPort;
-      els.backendStatus.textContent = data.serverStatus;
-      els.serverPort.textContent = ":" + data.serverPort;
-      els.backendDot.classList.toggle("bad", data.serverStatus !== "running");
+      const webURL = firstURL(data.webPorts, data.webPort);
+      const health = serviceHealth(data);
+      els.summary.textContent = `${serviceRows(data).length} services / ${portRows(data).length} ports / build ${data.buildStatus}`;
+      els.webLink.href = webURL;
+      els.webLink.textContent = webURL;
+      els.servicesStatus.textContent = health.label;
+      els.servicesDot.classList.toggle("bad", health.bad);
       els.checkStatus.textContent = data.checkEnabled ? data.checkStatus : "disabled";
-      els.checkDuration.textContent = data.checkEnabled ? (data.checkDuration || data.checkCommand || "") : "";
       els.checkDot.classList.toggle("bad", data.checkStatus === "failed");
       els.buildStatus.textContent = data.buildStatus;
       els.buildDuration.textContent = data.buildDuration || "";
       els.buildDot.classList.toggle("bad", data.buildStatus === "failed");
+      els.wasmStatus.textContent = data.buildStatus;
+      els.wasmDuration.textContent = data.buildDuration || "-";
+      els.lastChange.textContent = shortPath(data.lastChange || "none");
+      els.buildLog.textContent = data.buildLog || (data.buildStatus === "building" ? "building..." : "no build output");
+      els.wasmDot.classList.toggle("bad", data.buildStatus === "failed");
       els.watched.innerHTML = "";
       for (const path of data.watched || []) {
         const item = document.createElement("li");
@@ -121,12 +188,47 @@
         els.watched.appendChild(item);
       }
       renderPorts(data);
+      renderServiceLogs(data);
       els.errors.textContent = lines(data.currentErrors, "none");
-      els.logs.textContent = lines(data.logs);
     }
 
     function renderPorts(data) {
       els.ports.innerHTML = "";
+      const ports = portRows(data);
+      if (ports.length === 0) {
+        els.ports.textContent = "none";
+        return;
+      }
+      for (const port of ports) {
+        const card = document.createElement("div");
+        card.className = "port";
+        const label = document.createElement("strong");
+        label.textContent = port.group;
+        const portText = document.createElement("span");
+        portText.className = "port-code";
+        portText.textContent = `:${port.port}`;
+        const link = document.createElement("a");
+        link.href = port.url || `http://localhost:${port.port}`;
+        link.textContent = link.href;
+        const status = document.createElement("button");
+        status.type = "button";
+        status.className = "status";
+        status.textContent = port.status || "configured";
+        status.classList.toggle("active", selectedLog === serviceKey({ name: port.group }));
+        status.title = "Show logs";
+        status.addEventListener("click", () => {
+          selectedLog = serviceKey({ name: port.group });
+          renderServiceLogs(data);
+        });
+        card.appendChild(label);
+        card.appendChild(portText);
+        card.appendChild(link);
+        card.appendChild(status);
+        els.ports.appendChild(card);
+      }
+    }
+
+    function portRows(data) {
       let ports = [];
       if (data.services && data.services.length > 0) {
         for (const service of data.services) {
@@ -136,26 +238,131 @@
         }
       } else {
         ports = [
-          ...(data.webPorts || []).map((port) => ({ group: "web", ...port })),
-          ...(data.serverPorts || []).map((port) => ({ group: "backend", ...port }))
+          ...(data.webPorts || []).map((port) => ({ group: "web", status: "running", ...port })),
+          ...(data.serverPorts || []).map((port) => ({ group: "backend", status: data.serverStatus, ...port }))
         ];
       }
-      if (ports.length === 0) {
-        els.ports.textContent = "none";
+      ports.sort((a, b) => (a.port || 0) - (b.port || 0) || String(a.group).localeCompare(String(b.group)));
+      return ports;
+    }
+
+    function firstURL(ports, fallbackPort) {
+      const port = (ports || [])[0];
+      if (port && port.url) return port.url;
+      return `http://localhost:${fallbackPort}/`;
+    }
+
+    function shortPath(path) {
+      if (!path || path === "none") return "none";
+      const parts = String(path).split("/");
+      if (parts.length <= 4) return path;
+      return parts.slice(-4).join("/");
+    }
+
+    function serviceHealth(data) {
+      const services = serviceRows(data);
+      if (services.length === 0) return { label: "none", bad: false };
+      const running = services.filter((service) => service.status === "running").length;
+      const failed = services.filter((service) => service.status === "failed" || service.status === "stopped").length;
+      if (failed > 0) return { label: `${failed} failed`, bad: true };
+      if (running > 0) return { label: `${running}/${services.length} running`, bad: running !== services.length };
+      return { label: `${services.length} configured`, bad: false };
+    }
+
+    function serviceRows(data) {
+      if (data.services && data.services.length > 0) {
+        return [...data.services].sort((a, b) => firstPort(a) - firstPort(b) || a.name.localeCompare(b.name));
+      }
+      return [
+        { name: "web", status: "running", ports: data.webPorts || [] },
+        { name: "backend", status: data.serverStatus, ports: data.serverPorts || [] }
+      ].filter((service) => service.ports.length > 0);
+    }
+
+    function firstPort(service) {
+      const ports = service.ports || [];
+      if (ports.length === 0) return 999999;
+      return Math.min(...ports.map((port) => port.port || 999999));
+    }
+
+    function renderServiceLogs(data) {
+      renderLogTabs(data);
+      els.logs.innerHTML = "";
+      const logs = data.logs || [];
+      if (selectedLog === "global") {
+        els.logs.appendChild(logPanel("global", logs));
         return;
       }
-      for (const port of ports) {
-        const card = document.createElement("div");
-        card.className = "port";
-        const label = document.createElement("strong");
-        label.textContent = `${port.group} / ${port.name || "port"} :${port.port}`;
-        const link = document.createElement("a");
-        link.href = port.url || `http://localhost:${port.port}`;
-        link.textContent = link.href;
-        card.appendChild(label);
-        card.appendChild(link);
-        els.ports.appendChild(card);
+      const services = serviceRows(data);
+      const service = services.find((item) => serviceKey(item) === selectedLog);
+      if (!service) {
+        selectedLog = "global";
+        els.logs.appendChild(logPanel("global", logs));
+        return;
       }
+      els.logs.appendChild(logPanel(serviceLabel(service), logs.filter((line) => logMatchesService(line, service))));
+    }
+
+    function renderLogTabs(data) {
+      const services = serviceRows(data);
+      const valid = new Set(["global", ...services.map(serviceKey)]);
+      if (!valid.has(selectedLog)) selectedLog = "global";
+      els.logTabs.innerHTML = "";
+      els.logTabs.appendChild(logTab("global", "global"));
+      for (const service of services) {
+        els.logTabs.appendChild(logTab(serviceKey(service), serviceLabel(service)));
+      }
+    }
+
+    function logTab(key, label) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "log-tab";
+      button.classList.toggle("active", selectedLog === key);
+      button.textContent = label;
+      button.addEventListener("click", () => {
+        selectedLog = key;
+        refresh();
+      });
+      return button;
+    }
+
+    function serviceKey(service) {
+      return String(service.name || "");
+    }
+
+    function serviceLabel(service) {
+      const ports = (service.ports || []).map((port) => `:${port.port}`).join(", ");
+      return ports ? `${service.name} ${ports}` : service.name;
+    }
+
+    function logMatchesService(line, service) {
+      const text = String(line || "").toLowerCase();
+      const name = String(service.name || "").toLowerCase();
+      if (!name) return false;
+      if (text.includes(name)) return true;
+      for (const port of service.ports || []) {
+        if (port.port && text.includes(":" + port.port)) return true;
+      }
+      return false;
+    }
+
+    function logPanel(title, items) {
+      const panel = document.createElement("div");
+      panel.className = "log-panel";
+      const head = document.createElement("div");
+      head.className = "log-head";
+      const name = document.createElement("span");
+      name.textContent = title;
+      const count = document.createElement("span");
+      count.textContent = `${items.length} events`;
+      const body = document.createElement("pre");
+      body.textContent = lines(items, "no recent logs");
+      head.appendChild(name);
+      head.appendChild(count);
+      panel.appendChild(head);
+      panel.appendChild(body);
+      return panel;
     }
 
     async function refresh() {

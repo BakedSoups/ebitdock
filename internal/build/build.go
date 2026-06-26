@@ -29,6 +29,7 @@ type Result struct {
 func WASM(ctx context.Context, root string, cfg config.Config, status *process.Status) Result {
 	start := time.Now()
 	status.SetBuild("building", "", nil)
+	status.SetBuildLog("")
 	status.AppendLog("building wasm")
 
 	if cfg.DockerEnabled() {
@@ -170,6 +171,7 @@ func finish(status *process.Status, start time.Time, logText string, err error) 
 	if logText != "" {
 		status.AppendLog(logText)
 	}
+	status.SetBuildLog(logText)
 	if err != nil {
 		status.SetBuild("failed", duration.String(), err)
 		status.AppendLog(err.Error())
