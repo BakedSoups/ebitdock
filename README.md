@@ -1,38 +1,29 @@
 # ebitdock
 
-`ebitdock` is local orchestration for Ebitengine browser games.
+`ebitdock` is a Docker-first local dev CLI for Ebitengine browser games.
 
-For a small single-player WASM game, it is convenience: build WASM, serve static files, watch changes, and show errors. For multiplayer or live-service browser games, it becomes the useful abstraction around the game: ports, APIs, logs, dashboards, and local services in one place.
+I like Ebitengine: it is a great Go game engine that compiles Go code into WebAssembly and stays incredibly lightweight. The hard part is not the game engine. The hard part is port management and containerization when building layered IO games, browser games with backend databases, or games that need communication between multiple APIs. `ebitdock` is the small orchestration layer for that.
 
-It does not generate your web app, hide Ebitengine, require Node.js, or require Docker. Your project owns its HTML, JS bridge, audio setup, assets, and backend code.
+It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases.
 
-## Why
+## Requirements
 
-Ebitengine makes the game part pleasant: write Go, compile to WebAssembly, run in the browser.
-
-The awkward part is everything around the game once it grows beyond a single WASM file:
-
-```text
-game client      Ebitengine WASM
-web shell        static files, audio, JS bridge
-api server       scores, auth, inventory, content
-realtime server  rooms, matchmaking, WebSockets
-database/cache   local state for development
-dashboard        ports, logs, build status
-```
-
-`ebitdock dev` is intended to become the one command that starts and tracks that local stack.
+- Go
+- Docker with the Compose plugin
+- Linux/macOS first
 
 ## Install
+
+From this repo:
 
 ```sh
 go install ./cmd/ebitdock
 ```
 
-During local development:
+Make sure Go's bin directory is on your PATH:
 
 ```sh
-go run ./cmd/ebitdock --help
+export PATH="$HOME/go/bin:$PATH"
 ```
 
 ## Commands
@@ -42,36 +33,43 @@ ebitdock init [name|.]
 ebitdock dev
 ebitdock build wasm
 ebitdock logs
+ebitdock doctor
 ```
 
-## Quick Start
+## Existing Project
 
-For an existing Ebitengine project:
+From your Ebitengine repo:
 
 ```sh
-cd /path/to/your-game
 ebitdock init
+```
+
+This writes only `ebitdock.yaml`. It does not overwrite your game, static files, assets, or backend.
+
+Edit the generated config so `game.package`, `game.output`, `services.web.root`, and any API ports match your project.
+
+Then run:
+
+```sh
+ebitdock doctor
 ebitdock dev
 ```
 
-`init` writes only `ebitdock.yaml`. It does not overwrite or generate your game, web shell, assets, or backend.
+## What Dev Does
 
-For a basic project folder:
+`ebitdock dev`:
 
-```sh
-ebitdock init my-game
-```
+- builds your Ebitengine game to WASM in a Go Docker container
+- copies the matching `wasm_exec.js` from that same Go image
+- writes `.ebitdock/compose.yaml`
+- starts Docker Compose for the web/API services
+- starts the local dashboard
+- watches configured files and rebuilds WASM on source changes
+- writes logs to `.ebitdock/ebitdock.log`
 
-This creates:
+The dashboard shows ports, build/check status, watched paths, errors, and recent logs.
 
-```text
-my-game/
-  ebitdock.yaml
-```
-
-Edit the YAML paths to match your Go game package and static web root.
-
-## Configuration
+## Example Config
 
 ```yaml
 project: my-game
@@ -83,15 +81,28 @@ game:
 wasm:
   exec: ./static/wasm_exec.js
 
+docker:
+  enabled: true
+  compose_file: ./.ebitdock/compose.yaml
+  go_image: golang:1.22
+
 services:
   web:
     root: ./static
     port: 8080
+    image: nginx:1.27-alpine
+    workdir: /usr/share/nginx/html
+    volumes:
+      - ./static:/usr/share/nginx/html:ro
 
   api:
     enabled: false
     command: go run ./server
     port: 3001
+    image: golang:1.22
+    workdir: /app
+    volumes:
+      - .:/app
 
 dashboard:
   port: 8081
@@ -101,81 +112,13 @@ watch:
     - ./cmd/**/*.go
     - ./internal/**/*.go
     - ./assets/**
-
   static:
     - ./static/**
 ```
 
-For a minimal game, disable or omit API services. For a live-service game, add the local API/realtime/database processes your project needs.
+## Why This Helps
 
-## Project Model
-
-Your project owns the browser app:
-
-```text
-static/
-  index.html
-  wasm_exec.js      # written by ebitdock build wasm
-  game.wasm         # written by ebitdock build wasm
-  audio/
-  assets/
-```
-
-Your HTML loads Go WASM:
-
-```html
-<script src="./wasm_exec.js"></script>
-<script>
-  const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("./game.wasm"), go.importObject)
-    .then((result) => go.run(result.instance));
-</script>
-```
-
-Browser-specific behavior such as audio unlock, Howler setup, local storage, or JS bridge functions belongs in your project.
-
-## Dev Mode
-
-```sh
-ebitdock dev
-```
-
-Starts the configured web server, dashboard, optional API command, watcher, and initial WASM build.
-
-```text
-SERVICE    STATUS    URL/DETAILS
-web        running   http://localhost:8080
-dashboard  running   http://localhost:8081
-backend    disabled  -
-wasm       ok        514ms
-watch      active    6 patterns
-```
-
-`watch.rebuild` triggers WASM rebuilds. `watch.static` logs static file changes.
-
-## Build
-
-```sh
-ebitdock build wasm
-```
-
-Runs roughly:
-
-```sh
-GOOS=js GOARCH=wasm go build -mod=mod -o ./static/game.wasm ./cmd/game
-```
-
-It also copies the matching `wasm_exec.js` from the installed Go toolchain to the configured `wasm.exec` path.
-
-## Next
-
-The next planned dev runner is external `wasmserve`:
-
-```sh
-go install github.com/hajimehoshi/wasmserve@latest
-```
-
-`ebitdock` will use it as the Ebitengine WASM dev server while keeping responsibility for orchestration, ports, logs, optional services, and dashboard state.
+For a basic single-player WASM game, Docker may be more than you need. For a live-service game, it gives you one repeatable local stack: web client, game WASM build, API server, realtime server, database/cache, ports, logs, and CI-compatible commands.
 
 ## GitHub Checks
 
