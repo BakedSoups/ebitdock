@@ -75,6 +75,51 @@ func TestDockerServiceFieldsArePreserved(t *testing.T) {
 	}
 }
 
+func TestGenericServicesArePreservedAndDefaulted(t *testing.T) {
+	data := []byte(`project: demo
+services:
+  web:
+    root: ./static
+    port: 8080
+  realtime:
+    enabled: true
+    command: go run ./cmd/realtime
+    port: 3002
+    depends_on:
+      - api
+  database:
+    enabled: true
+    kind: postgres
+    image: postgres:16-alpine
+    port: 5432
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.SetDefaults()
+
+	services := cfg.EnabledServices()
+	realtime, ok := services["realtime"]
+	if !ok {
+		t.Fatal("realtime service missing")
+	}
+	if realtime.Kind != "go" || realtime.Image != "golang:1.22" || realtime.Workdir != "/app" {
+		t.Fatalf("realtime defaults not applied: %+v", realtime)
+	}
+	assertStrings(t, realtime.DependsOn, []string{"api"})
+	assertPorts(t, realtime.Ports, []PortConfig{{Name: "realtime", Port: 3002, URL: "http://localhost:3002"}})
+
+	database, ok := services["database"]
+	if !ok {
+		t.Fatal("database service missing")
+	}
+	if database.Kind != "postgres" || database.Image != "postgres:16-alpine" {
+		t.Fatalf("database not preserved: %+v", database)
+	}
+	assertPorts(t, database.Ports, []PortConfig{{Name: "database", Port: 5432, URL: "http://localhost:5432"}})
+}
+
 func TestBeforeRebuildCheckDefaultUsesGamePackage(t *testing.T) {
 	cfg := Config{
 		Project: "demo",

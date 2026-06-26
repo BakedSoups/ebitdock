@@ -3,6 +3,7 @@ package process
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -10,6 +11,12 @@ import (
 )
 
 type PortStatus = config.PortConfig
+
+type ServiceStatus struct {
+	Name   string       `json:"name"`
+	Status string       `json:"status"`
+	Ports  []PortStatus `json:"ports"`
+}
 
 // Status is the shared mutable state behind terminal logs and dashboard JSON.
 // All reads and writes go through methods so dev goroutines can update it
@@ -23,24 +30,25 @@ type Status struct {
 
 // state is the mutex-free snapshot shape encoded by /api/status.
 type state struct {
-	Project       string       `json:"project"`
-	WebPort       int          `json:"webPort"`
-	WebPorts      []PortStatus `json:"webPorts"`
-	DashboardPort int          `json:"dashboardPort"`
-	ServerEnabled bool         `json:"serverEnabled"`
-	ServerPort    int          `json:"serverPort"`
-	ServerPorts   []PortStatus `json:"serverPorts"`
-	ServerStatus  string       `json:"serverStatus"`
-	CheckEnabled  bool         `json:"checkEnabled"`
-	CheckCommand  string       `json:"checkCommand"`
-	CheckStatus   string       `json:"checkStatus"`
-	CheckDuration string       `json:"checkDuration"`
-	BuildStatus   string       `json:"buildStatus"`
-	BuildDuration string       `json:"buildDuration"`
-	LastBuildAt   time.Time    `json:"lastBuildAt"`
-	CurrentErrors []string     `json:"currentErrors"`
-	Watched       []string     `json:"watched"`
-	Logs          []string     `json:"logs"`
+	Project       string          `json:"project"`
+	WebPort       int             `json:"webPort"`
+	WebPorts      []PortStatus    `json:"webPorts"`
+	DashboardPort int             `json:"dashboardPort"`
+	ServerEnabled bool            `json:"serverEnabled"`
+	ServerPort    int             `json:"serverPort"`
+	ServerPorts   []PortStatus    `json:"serverPorts"`
+	ServerStatus  string          `json:"serverStatus"`
+	Services      []ServiceStatus `json:"services"`
+	CheckEnabled  bool            `json:"checkEnabled"`
+	CheckCommand  string          `json:"checkCommand"`
+	CheckStatus   string          `json:"checkStatus"`
+	CheckDuration string          `json:"checkDuration"`
+	BuildStatus   string          `json:"buildStatus"`
+	BuildDuration string          `json:"buildDuration"`
+	LastBuildAt   time.Time       `json:"lastBuildAt"`
+	CurrentErrors []string        `json:"currentErrors"`
+	Watched       []string        `json:"watched"`
+	Logs          []string        `json:"logs"`
 }
 
 // SetLogFile enables persistent project-local logging.
@@ -62,6 +70,7 @@ func NewStatus(cfg config.Config) *Status {
 			ServerPort:    cfg.APIPort(),
 			ServerPorts:   cfg.APIPorts(),
 			ServerStatus:  "disabled",
+			Services:      serviceStatuses(cfg),
 			CheckEnabled:  cfg.BeforeRebuildCheckEnabled(),
 			CheckCommand:  cfg.BeforeRebuildCheckCommand(),
 			CheckStatus:   "idle",
@@ -80,6 +89,7 @@ func (s *Status) Snapshot() state {
 	cp.CurrentErrors = append([]string(nil), s.CurrentErrors...)
 	cp.WebPorts = append([]PortStatus(nil), s.WebPorts...)
 	cp.ServerPorts = append([]PortStatus(nil), s.ServerPorts...)
+	cp.Services = copyServices(s.Services)
 	cp.Watched = append([]string(nil), s.Watched...)
 	cp.Logs = append([]string(nil), s.Logs...)
 	return cp
@@ -117,6 +127,20 @@ func (s *Status) SetServer(status string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ServerStatus = status
+	for i := range s.Services {
+		if s.Services[i].Name == "api" {
+			s.Services[i].Status = status
+		}
+	}
+}
+
+// SetServices records the same status for all configured Docker services.
+func (s *Status) SetServices(status string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.Services {
+		s.Services[i].Status = status
+	}
 }
 
 // AppendLog appends to the in-memory ring and mirrors the same line to disk
@@ -144,4 +168,31 @@ func (s *Status) RecentLogs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return append([]string(nil), s.Logs...)
+}
+
+func serviceStatuses(cfg config.Config) []ServiceStatus {
+	services := cfg.EnabledServices()
+	names := make([]string, 0, len(services))
+	for name := range services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]ServiceStatus, 0, len(names))
+	for _, name := range names {
+		service := services[name]
+		out = append(out, ServiceStatus{
+			Name:   name,
+			Status: "configured",
+			Ports:  append([]PortStatus(nil), service.Ports...),
+		})
+	}
+	return out
+}
+
+func copyServices(in []ServiceStatus) []ServiceStatus {
+	out := append([]ServiceStatus(nil), in...)
+	for i := range out {
+		out[i].Ports = append([]PortStatus(nil), out[i].Ports...)
+	}
+	return out
 }

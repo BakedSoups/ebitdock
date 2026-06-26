@@ -1,0 +1,99 @@
+project: orbit-snake
+
+game:
+  package: ./cmd/game
+  output: ./static/game.wasm
+
+wasm:
+  exec: ./static/wasm_exec.js
+
+docker:
+  enabled: true
+  compose_file: ./.ebitdock/compose.yaml
+  go_image: golang:1.22
+
+checks:
+  before_rebuild:
+    enabled: false
+    command: go test ./...
+
+services:
+  web:
+    kind: static
+    root: ./static
+    port: 8080
+    image: nginx:1.27-alpine
+    workdir: /usr/share/nginx/html
+    volumes:
+      - ./static:/usr/share/nginx/html:ro
+
+  api:
+    kind: go
+    enabled: true
+    command: go run ./cmd/api
+    port: 3001
+    image: golang:1.22
+    workdir: /app
+    env:
+      PORT: "3001"
+      DATABASE_URL: postgres://game:game@database:5432/game?sslmode=disable
+    volumes:
+      - .:/app
+    depends_on:
+      - database
+
+  realtime:
+    kind: go
+    enabled: true
+    command: go run ./cmd/realtime
+    port: 3002
+    image: golang:1.22
+    workdir: /app
+    env:
+      PORT: "3002"
+      API_URL: http://api:3001
+    volumes:
+      - .:/app
+    depends_on:
+      - api
+
+  admin:
+    kind: go
+    enabled: true
+    command: go run ./cmd/admin
+    port: 9090
+    image: golang:1.22
+    workdir: /app
+    env:
+      PORT: "9090"
+      API_URL: http://api:3001
+      REALTIME_URL: http://realtime:3002
+    volumes:
+      - .:/app
+    depends_on:
+      - api
+      - realtime
+
+  database:
+    kind: postgres
+    enabled: true
+    image: postgres:16-alpine
+    port: 5432
+    env:
+      POSTGRES_USER: game
+      POSTGRES_PASSWORD: game
+      POSTGRES_DB: game
+    volumes:
+      - orbit-snake-db:/var/lib/postgresql/data
+
+dashboard:
+  port: 8081
+
+watch:
+  rebuild:
+    - ./cmd/game/**/*.go
+    - ./internal/game/**/*.go
+    - ./internal/protocol/**/*.go
+    - ./assets/**
+  static:
+    - ./static/**

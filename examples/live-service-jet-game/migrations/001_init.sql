@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS players (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  total_scrap INTEGER NOT NULL DEFAULT 0,
+  high_score INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS upgrades (
+  player_id TEXT PRIMARY KEY REFERENCES players(id),
+  speed_level INTEGER NOT NULL DEFAULT 1,
+  turn_level INTEGER NOT NULL DEFAULT 1,
+  boost_level INTEGER NOT NULL DEFAULT 1,
+  shield_level INTEGER NOT NULL DEFAULT 0
+);

@@ -3,6 +3,7 @@ package cliui
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -15,14 +16,25 @@ func DevStatus(w io.Writer, cfg config.Config, webService string) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "SERVICE\tSTATUS\tURL/DETAILS")
 	fmt.Fprintf(tw, "%s\trunning\t%s\n", webService, urls(cfg.WebPorts()))
-	fmt.Fprintf(tw, "dashboard\trunning\thttp://localhost:%d\n", cfg.DashboardPort())
-	if cfg.APIEnabled() {
-		fmt.Fprintf(tw, "backend\trunning\t%s\n", ports(cfg.APIPorts()))
-	} else {
-		fmt.Fprintln(tw, "backend\tdisabled\t-")
+	for _, name := range sortedServiceNames(cfg.EnabledServices()) {
+		if name == "web" {
+			continue
+		}
+		service := cfg.EnabledServices()[name]
+		fmt.Fprintf(tw, "%s\trunning\t%s\n", name, ports(service.Ports))
 	}
+	fmt.Fprintf(tw, "dashboard\trunning\thttp://localhost:%d\n", cfg.DashboardPort())
 	fmt.Fprintf(tw, "watch\tactive\t%d patterns\n", len(cfg.WatchPatterns()))
 	_ = tw.Flush()
+}
+
+func sortedServiceNames(services map[string]config.ServiceConfig) []string {
+	names := make([]string, 0, len(services))
+	for name := range services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func urls(portList []config.PortConfig) string {

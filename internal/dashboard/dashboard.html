@@ -127,10 +127,19 @@
 
     function renderPorts(data) {
       els.ports.innerHTML = "";
-      const ports = [
-        ...(data.webPorts || []).map((port) => ({ group: "web", ...port })),
-        ...(data.serverPorts || []).map((port) => ({ group: "backend", ...port }))
-      ];
+      let ports = [];
+      if (data.services && data.services.length > 0) {
+        for (const service of data.services) {
+          for (const port of service.ports || []) {
+            ports.push({ group: service.name, status: service.status, ...port });
+          }
+        }
+      } else {
+        ports = [
+          ...(data.webPorts || []).map((port) => ({ group: "web", ...port })),
+          ...(data.serverPorts || []).map((port) => ({ group: "backend", ...port }))
+        ];
+      }
       if (ports.length === 0) {
         els.ports.textContent = "none";
         return;
@@ -139,7 +148,7 @@
         const card = document.createElement("div");
         card.className = "port";
         const label = document.createElement("strong");
-        label.textContent = `${port.name || port.group} :${port.port}`;
+        label.textContent = `${port.group} / ${port.name || "port"} :${port.port}`;
         const link = document.createElement("a");
         link.href = port.url || `http://localhost:${port.port}`;
         link.textContent = link.href;

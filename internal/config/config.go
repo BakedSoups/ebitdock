@@ -67,14 +67,16 @@ type CheckConfig struct {
 
 // ServicesConfig groups local processes that dev mode can start and track.
 type ServicesConfig struct {
-	Web ServiceConfig `yaml:"web"`
-	API ServiceConfig `yaml:"api"`
+	Web   ServiceConfig            `yaml:"web"`
+	API   ServiceConfig            `yaml:"api"`
+	Extra map[string]ServiceConfig `yaml:"-"`
 }
 
 // ServiceConfig is shared by static web service and optional API process. Some
 // fields are only meaningful for one service type.
 type ServiceConfig struct {
 	Enabled    bool              `yaml:"enabled"`
+	Kind       string            `yaml:"kind"`
 	Command    string            `yaml:"command"`
 	Root       string            `yaml:"root"`
 	Port       int               `yaml:"port"`
@@ -84,6 +86,7 @@ type ServiceConfig struct {
 	Workdir    string            `yaml:"workdir"`
 	Env        map[string]string `yaml:"env"`
 	Volumes    []string          `yaml:"volumes"`
+	DependsOn  []string          `yaml:"depends_on"`
 }
 
 // PortConfig describes one dashboard-visible port exposed by a service.
@@ -151,6 +154,27 @@ func (w *WatchConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
+// UnmarshalYAML keeps compatibility with the original fixed web/api model
+// while preserving arbitrary named services for Docker Compose projects.
+func (s *ServicesConfig) UnmarshalYAML(value *yaml.Node) error {
+	var raw map[string]ServiceConfig
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	s.Extra = map[string]ServiceConfig{}
+	for name, service := range raw {
+		switch name {
+		case "web":
+			s.Web = service
+		case "api":
+			s.API = service
+		default:
+			s.Extra[name] = service
+		}
+	}
+	return nil
+}
+
 // Load reads ebitdock.yaml, applies compatibility defaults, and validates the
 // normalized config used by the rest of the program.
 func Load(path string) (Config, error) {
@@ -196,6 +220,9 @@ func (c *Config) SetDefaults() {
 	if c.Services.Web.Root == "" {
 		c.Services.Web.Root = "./static"
 	}
+	if c.Services.Web.Kind == "" {
+		c.Services.Web.Kind = "static"
+	}
 	if c.Services.Web.Image == "" {
 		c.Services.Web.Image = "nginx:1.27-alpine"
 	}
@@ -224,6 +251,9 @@ func (c *Config) SetDefaults() {
 	if c.Services.API.Command == "" {
 		c.Services.API.Command = "go run ./server"
 	}
+	if c.Services.API.Kind == "" {
+		c.Services.API.Kind = "go"
+	}
 	if c.Services.API.Image == "" {
 		c.Services.API.Image = c.Docker.GoImage
 	}
@@ -243,12 +273,44 @@ func (c *Config) SetDefaults() {
 		c.Services.API.Port = 3001
 	}
 	c.Services.API.Ports = normalizePorts("api", c.Services.API.Port, c.Services.API.Ports)
+	if c.Services.Extra == nil {
+		c.Services.Extra = map[string]ServiceConfig{}
+	}
+	for name, service := range c.Services.Extra {
+		service = c.defaultNamedService(name, service)
+		c.Services.Extra[name] = service
+	}
 	if len(c.Watch.Rebuild) == 0 {
 		c.Watch.Rebuild = []string{"./game/**/*.go", "./assets/**"}
 	}
 	if len(c.Watch.Static) == 0 {
 		c.Watch.Static = []string{c.Services.Web.Root + "/**"}
 	}
+}
+
+func (c Config) defaultNamedService(name string, service ServiceConfig) ServiceConfig {
+	if service.Kind == "" {
+		if service.Image != "" && service.Command == "" {
+			service.Kind = "custom"
+		} else {
+			service.Kind = "go"
+		}
+	}
+	if service.Port != 0 {
+		service.Ports = normalizePorts(name, service.Port, service.Ports)
+	}
+	if service.Kind == "go" || service.Command != "" {
+		if service.Image == "" {
+			service.Image = c.Docker.GoImage
+		}
+		if service.Workdir == "" {
+			service.Workdir = "/app"
+		}
+		if len(service.Volumes) == 0 {
+			service.Volumes = []string{".:/app"}
+		}
+	}
+	return service
 }
 
 func normalizePorts(primaryName string, primary int, extras []PortConfig) []PortConfig {
@@ -356,6 +418,35 @@ func (c Config) APIPort() int {
 // APIPorts returns every configured backend/API port.
 func (c Config) APIPorts() []PortConfig {
 	return append([]PortConfig(nil), c.Services.API.Ports...)
+}
+
+// NamedServices returns every configured service keyed by service name.
+func (c Config) NamedServices() map[string]ServiceConfig {
+	services := map[string]ServiceConfig{
+		"web": c.Services.Web,
+		"api": c.Services.API,
+	}
+	for name, service := range c.Services.Extra {
+		services[name] = service
+	}
+	return services
+}
+
+// EnabledServices returns services that should be included in Docker Compose.
+// The web service is always included because it is the browser entrypoint.
+func (c Config) EnabledServices() map[string]ServiceConfig {
+	services := map[string]ServiceConfig{
+		"web": c.Services.Web,
+	}
+	if c.APIEnabled() {
+		services["api"] = c.Services.API
+	}
+	for name, service := range c.Services.Extra {
+		if service.Enabled {
+			services[name] = service
+		}
+	}
+	return services
 }
 
 // WASMExecPath returns where the matching Go wasm_exec.js should be copied.

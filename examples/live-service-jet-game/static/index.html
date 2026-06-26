@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>orbit-snake</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <strong>orbit-snake</strong>
+      <span id="status">loading wasm</span>
+    </div>
+    <canvas id="game"></canvas>
+  </main>
+  <script src="./wasm_exec.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    const go = new Go();
+
+    window.OrbitSnake = {
+      ready() {
+        status.textContent = "local arena ready";
+      },
+      log(message) {
+        console.log("[orbit-snake]", message);
+      }
+    };
+
+    async function boot() {
+      try {
+        const result = await WebAssembly.instantiateStreaming(fetch("./game.wasm"), go.importObject);
+        await go.run(result.instance);
+      } catch (err) {
+        status.textContent = "wasm failed";
+        console.error(err);
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>

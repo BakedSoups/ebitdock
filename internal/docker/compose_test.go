@@ -23,13 +23,14 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 				Volumes: []string{"./static:/usr/share/nginx/html:ro"},
 			},
 			API: config.ServiceConfig{
-				Enabled: true,
-				Command: "go run ./server",
-				Port:    3001,
-				Image:   "golang:1.22",
-				Workdir: "/app",
-				Env:     map[string]string{"PORT": "3001"},
-				Volumes: []string{".:/app"},
+				Enabled:   true,
+				Command:   "go run ./server",
+				Port:      3001,
+				Image:     "golang:1.22",
+				Workdir:   "/app",
+				Env:       map[string]string{"PORT": "3001"},
+				Volumes:   []string{".:/app"},
+				DependsOn: []string{"database"},
 			},
 		},
 	}
@@ -51,6 +52,7 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 		t.Fatalf("api env not preserved: %+v", api.Environment)
 	}
 	assertStrings(t, api.Ports, []string{"3001:3001"})
+	assertStrings(t, api.DependsOn, []string{"database"})
 }
 
 func TestGenerateComposeSkipsDisabledAPI(t *testing.T) {
@@ -64,6 +66,42 @@ func TestGenerateComposeSkipsDisabledAPI(t *testing.T) {
 	if _, ok := compose.Services["web"]; !ok {
 		t.Fatal("web service should be generated")
 	}
+}
+
+func TestGenerateComposeIncludesGenericServices(t *testing.T) {
+	cfg := config.Config{
+		Project: "demo",
+		Services: config.ServicesConfig{
+			Extra: map[string]config.ServiceConfig{
+				"realtime": {
+					Enabled:   true,
+					Command:   "go run ./cmd/realtime",
+					Port:      3002,
+					Image:     "golang:1.22",
+					Workdir:   "/app",
+					Volumes:   []string{".:/app"},
+					DependsOn: []string{"api"},
+				},
+				"admin": {
+					Enabled: false,
+					Command: "go run ./cmd/admin",
+					Port:    9090,
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+
+	compose := GenerateCompose(cfg)
+	if _, ok := compose.Services["admin"]; ok {
+		t.Fatal("disabled generic service should not be generated")
+	}
+	realtime, ok := compose.Services["realtime"]
+	if !ok {
+		t.Fatal("realtime service missing")
+	}
+	assertStrings(t, realtime.Ports, []string{"3002:3002"})
+	assertStrings(t, realtime.DependsOn, []string{"api"})
 }
 
 func TestWriteComposeCreatesConfiguredFile(t *testing.T) {

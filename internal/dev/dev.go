@@ -153,8 +153,10 @@ func runDocker(ctx context.Context, root string, cfg config.Config, status *proc
 	if err != nil {
 		return err
 	}
+	status.SetServices("running")
 	defer func() {
 		stack.Stop()
+		status.SetServices("stopped")
 		dockerComposeDown(root, cfg, status)
 	}()
 

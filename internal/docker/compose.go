@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -27,15 +28,14 @@ type ComposeService struct {
 	Environment map[string]string `yaml:"environment,omitempty"`
 	Volumes     []string          `yaml:"volumes,omitempty"`
 	Ports       []string          `yaml:"ports,omitempty"`
+	DependsOn   []string          `yaml:"depends_on,omitempty"`
 }
 
 // GenerateCompose builds the compose model from normalized ebitdock config.
 func GenerateCompose(cfg config.Config) ComposeFile {
-	services := map[string]ComposeService{
-		"web": composeService(cfg.Services.Web, cfg.WebPorts()),
-	}
-	if cfg.APIEnabled() {
-		services["api"] = composeService(cfg.Services.API, cfg.APIPorts())
+	services := map[string]ComposeService{}
+	for name, service := range cfg.EnabledServices() {
+		services[name] = composeService(service)
 	}
 	return ComposeFile{
 		Name:     cfg.Project,
@@ -59,20 +59,32 @@ func WriteCompose(root string, cfg config.Config) (string, error) {
 	return path, nil
 }
 
-func composeService(service config.ServiceConfig, ports []config.PortConfig) ComposeService {
+func composeService(service config.ServiceConfig) ComposeService {
 	out := ComposeService{
 		Image:       service.Image,
 		WorkingDir:  service.Workdir,
 		Command:     service.Command,
 		Environment: service.Env,
 		Volumes:     append([]string(nil), service.Volumes...),
-		Ports:       composePorts(ports),
+		Ports:       composePorts(service.Ports),
+		DependsOn:   append([]string(nil), service.DependsOn...),
 	}
 	if service.Dockerfile != "" {
-		out.Build = "."
+		out.Build = dockerfileBuildPath(service.Dockerfile)
 		out.Image = ""
 	}
 	return out
+}
+
+func dockerfileBuildPath(path string) string {
+	dir := filepath.ToSlash(filepath.Dir(path))
+	if dir == "." {
+		return "."
+	}
+	if !strings.HasPrefix(dir, ".") && !strings.HasPrefix(dir, "/") {
+		return "./" + dir
+	}
+	return dir
 }
 
 func composePorts(ports []config.PortConfig) []string {
