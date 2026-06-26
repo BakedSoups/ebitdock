@@ -3,7 +3,9 @@ package realtime
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -17,12 +19,14 @@ type Hub struct {
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]bool
 	ships   map[string]shared.ShipState
+	inputs  map[string]protocol.InputMessage
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		clients: map[*websocket.Conn]bool{},
 		ships:   map[string]shared.ShipState{},
+		inputs:  map[string]protocol.InputMessage{},
 	}
 }
 
@@ -40,6 +44,7 @@ func (h *Hub) Run() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for range ticker.C {
+		h.step(0.1)
 		h.broadcastState()
 	}
 }
@@ -75,15 +80,34 @@ func (h *Hub) readLoop(conn *websocket.Conn) {
 			continue
 		}
 		h.mu.Lock()
-		ship := h.ships[input.PlayerID]
-		ship.PlayerID = input.PlayerID
-		ship.Alive = true
-		if input.Thrust {
-			ship.Speed += 0.2
+		if _, ok := h.ships[input.PlayerID]; !ok {
+			h.ships[input.PlayerID] = spawnShip(input.PlayerID, len(h.ships))
 		}
-		ship.Angle += float64(input.Turn) * 0.1
-		h.ships[input.PlayerID] = ship
+		h.inputs[input.PlayerID] = input
 		h.mu.Unlock()
+	}
+}
+
+func (h *Hub) step(dt float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id, ship := range h.ships {
+		input := h.inputs[id]
+		ship.Alive = true
+		ship.Angle += float64(input.Turn) * 3.2 * dt
+		if input.Thrust {
+			ship.Speed += 26 * dt
+		}
+		if input.Boost {
+			ship.Speed += 18 * dt
+		}
+		ship.Speed *= 0.95
+		ship.Speed = clamp(ship.Speed, 24, 120)
+		ship.X += math.Cos(ship.Angle) * ship.Speed * dt
+		ship.Y += math.Sin(ship.Angle) * ship.Speed * dt
+		wrap(&ship.X, 960)
+		wrap(&ship.Y, 640)
+		h.ships[id] = ship
 	}
 }
 
@@ -93,6 +117,9 @@ func (h *Hub) broadcastState() {
 	for _, ship := range h.ships {
 		ships = append(ships, ship)
 	}
+	sort.Slice(ships, func(i, j int) bool {
+		return ships[i].PlayerID < ships[j].PlayerID
+	})
 	message := protocol.StateMessage{Type: "state", Ships: ships}
 	data, _ := json.Marshal(message)
 	clients := make([]*websocket.Conn, 0, len(h.clients))
@@ -109,4 +136,34 @@ func (h *Hub) broadcastState() {
 			_ = conn.Close()
 		}
 	}
+}
+
+func spawnShip(playerID string, index int) shared.ShipState {
+	return shared.ShipState{
+		PlayerID: playerID,
+		X:        160 + float64(index%5)*120,
+		Y:        140 + float64(index/5)*100,
+		Angle:    float64(index) * 0.8,
+		Speed:    42,
+		Alive:    true,
+	}
+}
+
+func wrap(v *float64, max float64) {
+	if *v < 0 {
+		*v += max
+	}
+	if *v > max {
+		*v -= max
+	}
+}
+
+func clamp(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }

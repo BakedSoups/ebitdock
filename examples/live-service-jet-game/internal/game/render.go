@@ -8,6 +8,8 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+
+	"example.com/orbit-snake/internal/shared"
 )
 
 func drawBackground(screen *ebiten.Image) {
@@ -54,6 +56,22 @@ func drawShip(screen *ebiten.Image, ship Ship) {
 	vector.StrokeLine(screen, float32(rightX), float32(rightY), float32(noseX), float32(noseY), 3, ship.Color, false)
 	if ship.Boosting {
 		vector.DrawFilledCircle(screen, float32(ship.X-math.Cos(ship.Angle)*17), float32(ship.Y-math.Sin(ship.Angle)*17), 6, color.RGBA{R: 255, G: 201, B: 92, A: 220}, false)
+	}
+}
+
+func drawRemoteShips(screen *ebiten.Image, ships []shared.ShipState) {
+	for _, ship := range ships {
+		noseX := ship.X + math.Cos(ship.Angle)*15
+		noseY := ship.Y + math.Sin(ship.Angle)*15
+		leftX := ship.X + math.Cos(ship.Angle+2.45)*11
+		leftY := ship.Y + math.Sin(ship.Angle+2.45)*11
+		rightX := ship.X + math.Cos(ship.Angle-2.45)*11
+		rightY := ship.Y + math.Sin(ship.Angle-2.45)*11
+		body := color.RGBA{R: 255, G: 124, B: 178, A: 255}
+		vector.DrawFilledCircle(screen, float32(ship.X), float32(ship.Y), 7, color.RGBA{R: 30, G: 12, B: 24, A: 220}, false)
+		vector.StrokeLine(screen, float32(noseX), float32(noseY), float32(leftX), float32(leftY), 2, body, false)
+		vector.StrokeLine(screen, float32(leftX), float32(leftY), float32(rightX), float32(rightY), 2, body, false)
+		vector.StrokeLine(screen, float32(rightX), float32(rightY), float32(noseX), float32(noseY), 2, body, false)
 	}
 }
 

@@ -8,15 +8,24 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
+	"example.com/orbit-snake/internal/shared"
 )
 
 type Game struct {
-	Arena *Arena
+	Arena    *Arena
+	Net      *NetClient
+	lastTurn int
+	thrust   bool
+	boost    bool
 }
 
 func New() *Game {
 	bridgeReady()
-	return &Game{Arena: NewArena()}
+	return &Game{
+		Arena: NewArena(),
+		Net:   NewNetClient(),
+	}
 }
 
 func (g *Game) Update() error {
@@ -30,18 +39,23 @@ func (g *Game) Update() error {
 	}
 
 	turn := 0.045
+	g.lastTurn = 0
+	g.thrust = ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
+	g.boost = ebiten.IsKeyPressed(ebiten.KeySpace) && a.Ship.Scrap > 0
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		a.Ship.Angle -= turn
+		g.lastTurn = -1
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
 		a.Ship.Angle += turn
+		g.lastTurn = 1
 	}
 
 	thrust := 0.02
-	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
+	if g.thrust {
 		a.Ship.Speed += thrust
 	}
-	a.Ship.Boosting = ebiten.IsKeyPressed(ebiten.KeySpace) && a.Ship.Scrap > 0
+	a.Ship.Boosting = g.boost
 	if a.Ship.Boosting {
 		a.Ship.Speed += 0.04
 		if a.Tick%12 == 0 {
@@ -66,6 +80,9 @@ func (g *Game) Update() error {
 
 	g.collectCrystals()
 	g.checkTrailCollision()
+	if a.Tick%4 == 0 {
+		g.Net.SendInput(g.lastTurn, g.thrust, g.boost)
+	}
 	return nil
 }
 
@@ -73,10 +90,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawBackground(screen)
 	drawCrystals(screen, g.Arena.Crystals)
 	drawTrail(screen, g.Arena.Ship)
+	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("score %d  scrap %d  trail %d", g.Arena.Ship.Score, g.Arena.Ship.Scrap, len(g.Arena.Ship.Trail)), 16, 14)
-	ebitenutil.DebugPrintAt(screen, "WASD/arrow turn + thrust | space boost | R respawn", 16, 32)
-	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 50)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("player %s  net %s  peers %d", g.Net.PlayerID, g.Net.Status(), len(g.remoteShips())), 16, 32)
+	ebitenutil.DebugPrintAt(screen, "WASD/arrow turn + thrust | space boost | R respawn", 16, 50)
+	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
 }
 
 func (g *Game) Layout(int, int) (int, int) {
@@ -134,4 +153,16 @@ func clamp(v, min, max float64) float64 {
 
 func distance(ax, ay, bx, by float64) float64 {
 	return math.Hypot(ax-bx, ay-by)
+}
+
+func (g *Game) remoteShips() []shared.ShipState {
+	ships := g.Net.Ships()
+	out := ships[:0]
+	for _, ship := range ships {
+		if ship.PlayerID == g.Net.PlayerID {
+			continue
+		}
+		out = append(out, ship)
+	}
+	return out
 }
