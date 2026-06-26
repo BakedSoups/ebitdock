@@ -20,6 +20,7 @@ import (
 type Hub struct {
 	mu          sync.RWMutex
 	clients     map[*websocket.Conn]bool
+	clientIDs   map[*websocket.Conn]string
 	ships       map[string]shared.ShipState
 	inputs      map[string]protocol.InputMessage
 	crystals    map[string]shared.Crystal
@@ -32,6 +33,7 @@ type Hub struct {
 func NewHub() *Hub {
 	h := &Hub{
 		clients:   map[*websocket.Conn]bool{},
+		clientIDs: map[*websocket.Conn]string{},
 		ships:     map[string]shared.ShipState{},
 		inputs:    map[string]protocol.InputMessage{},
 		crystals:  map[string]shared.Crystal{},
@@ -74,6 +76,7 @@ func (h *Hub) websocket(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Lock()
 	h.clients[conn] = true
+	log.Printf("realtime websocket connected clients=%d", len(h.clients))
 	h.mu.Unlock()
 	go h.readLoop(conn)
 }
@@ -81,7 +84,14 @@ func (h *Hub) websocket(w http.ResponseWriter, r *http.Request) {
 func (h *Hub) readLoop(conn *websocket.Conn) {
 	defer func() {
 		h.mu.Lock()
+		if playerID := h.clientIDs[conn]; playerID != "" {
+			delete(h.ships, playerID)
+			delete(h.inputs, playerID)
+			delete(h.cooldowns, playerID)
+			log.Printf("player disconnected id=%s remaining=%d", playerID, len(h.clients)-1)
+		}
 		delete(h.clients, conn)
+		delete(h.clientIDs, conn)
 		h.mu.Unlock()
 		_ = conn.Close()
 	}()
@@ -94,8 +104,15 @@ func (h *Hub) readLoop(conn *websocket.Conn) {
 			continue
 		}
 		h.mu.Lock()
+		if existing := h.clientIDs[conn]; existing != "" && existing != input.PlayerID {
+			delete(h.ships, existing)
+			delete(h.inputs, existing)
+			delete(h.cooldowns, existing)
+		}
+		h.clientIDs[conn] = input.PlayerID
 		if _, ok := h.ships[input.PlayerID]; !ok {
-			h.ships[input.PlayerID] = spawnShip(input.PlayerID, len(h.ships))
+			h.ships[input.PlayerID] = spawnShip(input.PlayerID, input.PlayerName, len(h.ships))
+			log.Printf("player joined id=%s name=%q", input.PlayerID, input.PlayerName)
 		}
 		h.inputs[input.PlayerID] = input
 		h.mu.Unlock()
@@ -107,7 +124,22 @@ func (h *Hub) step(dt float64) {
 	defer h.mu.Unlock()
 	for id, ship := range h.ships {
 		input := h.inputs[id]
-		ship.Alive = true
+		before := ship
+		respawned := false
+		if input.PlayerName != "" {
+			ship.PlayerName = input.PlayerName
+		}
+		if input.Respawn {
+			ship = spawnShip(id, ship.PlayerName, len(h.ships))
+			respawned = true
+			input.Respawn = false
+			h.inputs[id] = input
+			log.Printf("player respawned id=%s name=%q level=%d xp=%d points=%d", id, ship.PlayerName, ship.Level, ship.XP, ship.UpgradePoints)
+		}
+		if !ship.Alive {
+			h.ships[id] = ship
+			continue
+		}
 		if input.X != 0 || input.Y != 0 {
 			ship.X = input.X
 			ship.Y = input.Y
@@ -118,9 +150,14 @@ func (h *Hub) step(dt float64) {
 			ship.Angle += float64(input.Turn) * 3.2 * dt
 		}
 		ship.SpeedLevel = input.SpeedLevel
+		ship.TurnLevel = input.TurnLevel
 		ship.DamageLevel = input.DamageLevel
 		ship.FireRateLevel = input.FireRateLevel
+		ship.UpgradePoints = input.UpgradePoints
 		h.collectCrystalsLocked(&ship, input.CollectedIDs)
+		if ship.Level < before.Level {
+			log.Printf("level decreased id=%s before=%d after=%d respawn=%v alive=%v", id, before.Level, ship.Level, respawned, ship.Alive)
+		}
 		h.ships[id] = ship
 		h.cooldowns[id] -= dt
 		if input.Shoot && h.cooldowns[id] <= 0 {
@@ -176,12 +213,19 @@ func (h *Hub) collectCrystalsLocked(ship *shared.ShipState, ids []string) {
 	for _, id := range ids {
 		crystal, ok := h.crystals[id]
 		if !ok {
+			log.Printf("crystal collect ignored id=%s player=%s reason=missing", id, ship.PlayerID)
 			continue
 		}
-		if math.Hypot(ship.X-crystal.X, ship.Y-crystal.Y) > 28 {
+		dist := math.Hypot(ship.X-crystal.X, ship.Y-crystal.Y)
+		if dist > 28 {
+			log.Printf("crystal collect rejected id=%s player=%s dist=%.1f", id, ship.PlayerID, dist)
 			continue
 		}
+		beforeLevel := ship.Level
+		beforeXP := ship.XP
 		ship.Score += crystal.Value
+		addXP(ship, crystal.Value)
+		log.Printf("crystal collected id=%s player=%s value=%d xp=%d->%d level=%d->%d points=%d", id, ship.PlayerID, crystal.Value, beforeXP, ship.XP, beforeLevel, ship.Level, ship.UpgradePoints)
 		delete(h.crystals, id)
 		h.spawnCrystalLocked()
 	}
@@ -206,19 +250,24 @@ func (h *Hub) spawnCrystalLocked() {
 	}
 }
 
-func spawnShip(playerID string, index int) shared.ShipState {
-	level := 1
+func spawnShip(playerID, playerName string, index int) shared.ShipState {
+	if playerName == "" {
+		playerName = playerID
+	}
+	level := 0
 	maxHP := 100
 	return shared.ShipState{
-		PlayerID: playerID,
-		X:        160 + float64(index%5)*120,
-		Y:        140 + float64(index/5)*100,
-		Angle:    float64(index) * 0.8,
-		Speed:    42,
-		Alive:    true,
-		Level:    level,
-		HP:       maxHP,
-		MaxHP:    maxHP,
+		PlayerID:   playerID,
+		PlayerName: playerName,
+		X:          160 + float64(index%5)*120,
+		Y:          140 + float64(index/5)*100,
+		Angle:      float64(index) * 0.8,
+		Speed:      42,
+		Alive:      true,
+		Level:      level,
+		NextXP:     nextXP(level),
+		HP:         maxHP,
+		MaxHP:      maxHP,
 	}
 }
 
@@ -265,15 +314,34 @@ func (h *Hub) stepBullets(dt float64) {
 		target.HP -= bullet.Damage
 		if target.HP <= 0 {
 			killer := h.ships[bullet.OwnerID]
+			killerBeforeLevel := killer.Level
 			killer.Score++
-			killer.Level = 1 + killer.Score/2
+			addXP(&killer, 8)
 			killer.MaxHP = 100 + killer.Level*12
 			killer.HP = min(killer.MaxHP, killer.HP+35)
 			h.ships[bullet.OwnerID] = killer
-			target = spawnShip(hit, len(h.ships))
+			target.Alive = false
+			target.HP = 0
+			log.Printf("ship destroyed victim=%s killer=%s killer_level=%d->%d killer_xp=%d points=%d", hit, bullet.OwnerID, killerBeforeLevel, killer.Level, killer.XP, killer.UpgradePoints)
 		}
 		h.ships[hit] = target
 	}
+}
+
+func addXP(ship *shared.ShipState, amount int) {
+	ship.XP += amount
+	for ship.XP >= nextXP(ship.Level) {
+		ship.XP -= nextXP(ship.Level)
+		ship.Level++
+		ship.UpgradePoints++
+		ship.NextXP = nextXP(ship.Level)
+		log.Printf("level up player=%s level=%d xp=%d next=%d points=%d", ship.PlayerID, ship.Level, ship.XP, ship.NextXP, ship.UpgradePoints)
+	}
+	ship.NextXP = nextXP(ship.Level)
+}
+
+func nextXP(level int) int {
+	return 8 + level*6
 }
 
 func wrap(v *float64, max float64) {

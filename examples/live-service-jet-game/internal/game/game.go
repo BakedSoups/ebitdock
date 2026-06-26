@@ -5,6 +5,7 @@ package game
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -13,38 +14,62 @@ import (
 	"example.com/orbit-snake/internal/shared"
 )
 
+type screenState int
+
+const (
+	screenLogin screenState = iota
+	screenPlaying
+	screenDead
+)
+
 type Game struct {
-	Arena    *Arena
-	Net      *NetClient
-	lastTurn int
-	thrust   bool
-	boost    bool
-	shoot    bool
+	Arena          *Arena
+	Net            *NetClient
+	state          screenState
+	playerName     string
+	lastTurn       int
+	thrust         bool
+	shoot          bool
+	respawnPending bool
 }
 
 func New() *Game {
 	bridgeReady()
 	return &Game{
-		Arena: NewArena(),
-		Net:   NewNetClient(),
+		Arena:      NewArena(),
+		Net:        NewNetClient(),
+		state:      screenLogin,
+		playerName: "pilot",
 	}
 }
 
 func (g *Game) Update() error {
 	a := g.Arena
 	a.Tick++
-	if !a.Ship.Alive {
-		if ebiten.IsKeyPressed(ebiten.KeyR) {
+
+	switch g.state {
+	case screenLogin:
+		g.updateLogin()
+		return nil
+	case screenDead:
+		if inpututil.IsKeyJustPressed(ebiten.KeyR) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			a.Reset()
+			g.respawnPending = true
+			g.state = screenPlaying
 		}
 		return nil
 	}
 
-	turn := 0.045
+	g.syncSelfFromServer()
+	if !a.Ship.Alive {
+		g.state = screenDead
+		return nil
+	}
+
+	turn := 0.047 + float64(a.Upgrades.Turn)*0.006
 	g.lastTurn = 0
 	g.thrust = ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
-	g.boost = (ebiten.IsKeyPressed(ebiten.KeyShiftLeft) || ebiten.IsKeyPressed(ebiten.KeyShiftRight)) && a.Ship.Scrap > 0
-	g.shoot = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) || ebiten.IsKeyPressed(ebiten.KeySpace)
+	g.shoot = ebiten.IsKeyPressed(ebiten.KeySpace)
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		a.Ship.Angle -= turn
 		g.lastTurn = -1
@@ -53,23 +78,13 @@ func (g *Game) Update() error {
 		a.Ship.Angle += turn
 		g.lastTurn = 1
 	}
-	if mx, my := ebiten.CursorPosition(); mx != 0 || my != 0 {
-		a.Ship.Angle = math.Atan2(float64(my)-a.Ship.Y, float64(mx)-a.Ship.X)
-	}
 
-	thrust := 0.02
+	thrust := 0.025 + float64(a.Upgrades.Speed)*0.004
 	if g.thrust {
 		a.Ship.Speed += thrust
 	}
-	a.Ship.Boosting = g.boost
-	if a.Ship.Boosting {
-		a.Ship.Speed += 0.04
-		if a.Tick%12 == 0 {
-			a.Ship.Scrap--
-		}
-	}
 	a.Ship.Speed *= 0.992
-	a.Ship.Speed = clamp(a.Ship.Speed, 1.8, 5.0)
+	a.Ship.Speed = clamp(a.Ship.Speed, 0.6, 5.0+float64(a.Upgrades.Speed)*0.45)
 
 	a.Ship.X += math.Cos(a.Ship.Angle) * a.Ship.Speed
 	a.Ship.Y += math.Sin(a.Ship.Angle) * a.Ship.Speed
@@ -79,21 +94,30 @@ func (g *Game) Update() error {
 	g.collectCrystals()
 	g.buyUpgrades()
 	if a.Tick%2 == 0 {
-		g.Net.SendInput(g.lastTurn, g.thrust, g.boost, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle, a.Upgrades.Speed, a.Upgrades.Damage, a.Upgrades.FireRate)
+		g.Net.SendInput(g.playerName, g.respawnPending, g.lastTurn, g.thrust, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle, a.Ship.Points, a.Upgrades.Speed, a.Upgrades.Turn, a.Upgrades.Damage, a.Upgrades.FireRate)
+		g.respawnPending = false
 	}
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	drawBackground(screen)
+	if g.state == screenLogin {
+		drawLoginScreen(screen, g.playerName, g.Net.Status())
+		return
+	}
 	drawCrystals(screen, g.visibleCrystals())
 	drawBullets(screen, g.Net.Bullets())
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("scrap %d  upgrades speed %d damage %d fire %d  server %s", g.Arena.Ship.Scrap, g.Arena.Upgrades.Speed, g.Arena.Upgrades.Damage, g.Arena.Upgrades.FireRate, g.selfStats()), 16, 14)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("player %s  net %s  peers %d", g.Net.PlayerID, g.Net.Status(), len(g.remoteShips())), 16, 32)
-	ebitenutil.DebugPrintAt(screen, "WASD/arrow move | mouse aim | click/space shoot | shift boost | dots buy 1 speed 2 damage 3 fire", 16, 50)
+	drawXPBar(screen, g.Arena.Ship.XP, g.Arena.NextXP(), g.Arena.Ship.Level)
+	drawUpgradeTree(screen, g.Arena.Upgrades, g.Arena.Ship.Points)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("pilot %s  net %s  peers %d", g.playerName, g.Net.Status(), len(g.remoteShips())), 16, 14)
+	ebitenutil.DebugPrintAt(screen, "A/D rotate | W forward | Space shoot | 1 speed 2 turn 3 damage 4 fire", 16, 32)
 	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
+	if g.state == screenDead {
+		drawEndScreen(screen, g.Arena.Ship.Score, g.Arena.Ship.Level)
+	}
 }
 
 func (g *Game) Layout(int, int) (int, int) {
@@ -109,12 +133,13 @@ func (g *Game) collectCrystals() {
 	next := g.Arena.Crystals[:0]
 	for _, crystal := range crystals {
 		if distance(ship.X, ship.Y, crystal.X, crystal.Y) < 16 {
-			ship.Score += crystal.Value
-			ship.Scrap += crystal.Value
-			g.Arena.Message = fmt.Sprintf("+%d scrap dot", crystal.Value)
 			if crystal.ID != "" {
 				g.Net.QueueCrystalCollection(crystal.ID)
+				g.Arena.Message = fmt.Sprintf("+%d XP queued", crystal.Value)
 			} else {
+				ship.Score += crystal.Value
+				g.addXP(crystal.Value)
+				g.Arena.Message = fmt.Sprintf("+%d XP", crystal.Value)
 				g.Arena.SpawnCrystal()
 			}
 			continue
@@ -131,22 +156,67 @@ func (g *Game) buyUpgrades() {
 		g.buyUpgrade("speed", &g.Arena.Upgrades.Speed)
 	}
 	if inpututil.IsKeyJustPressed(ebiten.Key2) {
-		g.buyUpgrade("damage", &g.Arena.Upgrades.Damage)
+		g.buyUpgrade("turn", &g.Arena.Upgrades.Turn)
 	}
 	if inpututil.IsKeyJustPressed(ebiten.Key3) {
+		g.buyUpgrade("damage", &g.Arena.Upgrades.Damage)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.Key4) {
 		g.buyUpgrade("fire", &g.Arena.Upgrades.FireRate)
 	}
 }
 
 func (g *Game) buyUpgrade(name string, level *int) {
-	cost := 4 + (*level * 3)
-	if g.Arena.Ship.Scrap < cost {
-		g.Arena.Message = fmt.Sprintf("%s upgrade needs %d scrap", name, cost)
+	if g.Arena.Ship.Points <= 0 {
+		g.Arena.Message = fmt.Sprintf("%s upgrade needs a level point", name)
 		return
 	}
-	g.Arena.Ship.Scrap -= cost
+	g.Arena.Ship.Points--
 	*level = *level + 1
 	g.Arena.Message = fmt.Sprintf("%s upgraded to %d", name, *level)
+}
+
+func (g *Game) updateLogin() {
+	for _, r := range ebiten.AppendInputChars(nil) {
+		if len(g.playerName) < 14 && (r == '-' || r == '_' || r == ' ' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z') {
+			g.playerName += string(r)
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.playerName) > 0 {
+		g.playerName = g.playerName[:len(g.playerName)-1]
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		g.playerName = strings.TrimSpace(g.playerName)
+		if g.playerName == "" {
+			g.playerName = "pilot"
+		}
+		g.respawnPending = true
+		g.state = screenPlaying
+	}
+}
+
+func (g *Game) addXP(amount int) {
+	g.Arena.Ship.XP += amount
+	for g.Arena.Ship.XP >= g.Arena.NextXP() {
+		g.Arena.Ship.XP -= g.Arena.NextXP()
+		g.Arena.Ship.Level++
+		g.Arena.Ship.Points++
+		g.Arena.Message = fmt.Sprintf("level %d reached: choose an upgrade", g.Arena.Ship.Level)
+	}
+}
+
+func (g *Game) syncSelfFromServer() {
+	for _, ship := range g.Net.Ships() {
+		if ship.PlayerID != g.Net.PlayerID {
+			continue
+		}
+		g.Arena.Ship.Alive = ship.Alive
+		g.Arena.Ship.Score = ship.Score
+		g.Arena.Ship.Level = ship.Level
+		g.Arena.Ship.XP = ship.XP
+		g.Arena.Ship.Points = ship.UpgradePoints
+		return
+	}
 }
 
 func wrap(v *float64, max float64) {

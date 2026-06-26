@@ -78,9 +78,10 @@ That makes `ebitdock dev` meaningful without making the game too large.
 
 ## Controls
 
-- `W` or up arrow: thrust
+- `W` or up arrow: thrust forward
 - `A/D` or left/right arrows: turn
-- space: boost
+- space: shoot
+- `1`/`2`/`3`/`4`: buy speed, turn, damage, and fire-rate upgrades with level points
 - mouse/touch later for mobile steering
 
 ## Visual Style
@@ -379,7 +380,7 @@ Client to realtime:
   "player_id": "p1",
   "turn": -1,
   "thrust": true,
-  "boost": false
+  "shoot": false
 }
 ```
 
@@ -518,6 +519,22 @@ The example is successful when:
 - dashboard clearly shows every service and port
 - editing client Go code rebuilds WASM
 - editing API/realtime code restarts the right service
+
+## Current Gameplay Implementation Checklist
+
+This pass focuses the playable demo around a Diep.io-like run loop.
+
+- Add a login screen before the ship joins the arena.
+- Use keyboard-only flight: `A`/`D` rotate, `W` thrusts forward, `Space` shoots.
+- Remove mouse aiming and boost from the primary loop.
+- Add XP, level, and upgrade points to the live ship state.
+- Add an XP bar below the player HUD.
+- Add upgrade choices for speed, turn, damage, and fire rate.
+- Make crystal collection grant XP.
+- Make kills grant XP.
+- Stop server-side instant respawn on death.
+- Show an end screen when the player dies.
+- Respawn sends a new join request and resets the run to level 0.
 
 ## Design Constraints
 

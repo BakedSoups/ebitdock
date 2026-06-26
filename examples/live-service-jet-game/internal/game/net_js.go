@@ -35,7 +35,7 @@ func NewNetClient() *NetClient {
 	return client
 }
 
-func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle float64, speedLevel, damageLevel, fireRateLevel int) {
+func (c *NetClient) SendInput(playerName string, respawn bool, turn int, thrust, shoot bool, x, y, angle float64, upgradePoints, speedLevel, turnLevel, damageLevel, fireRateLevel int) {
 	if c.socket.IsUndefined() || c.socket.IsNull() || c.socket.Get("readyState").Int() != 1 {
 		return
 	}
@@ -46,14 +46,17 @@ func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle f
 	msg := protocol.InputMessage{
 		Type:          "input",
 		PlayerID:      c.PlayerID,
+		PlayerName:    playerName,
+		Respawn:       respawn,
 		Turn:          turn,
 		Thrust:        thrust,
-		Boost:         boost,
 		Shoot:         shoot,
 		X:             x,
 		Y:             y,
 		Angle:         angle,
+		UpgradePoints: upgradePoints,
 		SpeedLevel:    speedLevel,
+		TurnLevel:     turnLevel,
 		DamageLevel:   damageLevel,
 		FireRateLevel: fireRateLevel,
 		CollectedIDs:  collected,
@@ -103,7 +106,6 @@ func (c *NetClient) connect() {
 	c.socket = socket
 	socket.Set("onopen", js.FuncOf(func(js.Value, []js.Value) any {
 		c.setStatus("connected")
-		c.SendInput(0, false, false, false, 0, 0, 0, 0, 0, 0)
 		return nil
 	}))
 	socket.Set("onclose", js.FuncOf(func(js.Value, []js.Value) any {
@@ -137,7 +139,17 @@ func (c *NetClient) setStatus(status string) {
 }
 
 func tabPlayerID() string {
-	return randomPlayerID()
+	storage := js.Global().Get("sessionStorage")
+	if storage.IsUndefined() || storage.IsNull() {
+		return randomPlayerID()
+	}
+	existing := storage.Call("getItem", "orbitSnakePlayerID")
+	if !existing.IsNull() && existing.String() != "" {
+		return existing.String()
+	}
+	id := randomPlayerID()
+	storage.Call("setItem", "orbitSnakePlayerID", id)
+	return id
 }
 
 func randomPlayerID() string {

@@ -30,6 +30,7 @@ type Crystal struct {
 // ShipState is the realtime shape exchanged by clients and the realtime server.
 type ShipState struct {
 	PlayerID      string  `json:"player_id"`
+	PlayerName    string  `json:"player_name"`
 	X             float64 `json:"x"`
 	Y             float64 `json:"y"`
 	Angle         float64 `json:"angle"`
@@ -37,9 +38,13 @@ type ShipState struct {
 	Alive         bool    `json:"alive"`
 	Score         int     `json:"score"`
 	Level         int     `json:"level"`
+	XP            int     `json:"xp"`
+	NextXP        int     `json:"next_xp"`
+	UpgradePoints int     `json:"upgrade_points"`
 	HP            int     `json:"hp"`
 	MaxHP         int     `json:"max_hp"`
 	SpeedLevel    int     `json:"speed_level"`
+	TurnLevel     int     `json:"turn_level"`
 	DamageLevel   int     `json:"damage_level"`
 	FireRateLevel int     `json:"fire_rate_level"`
 }

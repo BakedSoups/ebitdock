@@ -12,7 +12,8 @@ func NewNetClient() *NetClient {
 	return &NetClient{PlayerID: "local"}
 }
 
-func (c *NetClient) SendInput(int, bool, bool, bool, float64, float64, float64, int, int, int) {}
+func (c *NetClient) SendInput(string, bool, int, bool, bool, float64, float64, float64, int, int, int, int, int) {
+}
 
 func (c *NetClient) QueueCrystalCollection(string) {}
 
