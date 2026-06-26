@@ -1,46 +1,47 @@
 # ebitdock
 
-I really like Ebitengine. It is a great Go game engine, and its browser target makes it possible to compile Go games into lightweight WebAssembly experiences that run directly in the browser.
+`ebitdock` is local orchestration for Ebitengine browser games.
 
-The part I found awkward was everything around the game: port management, local service orchestration, and the setup needed for browser games that talk to backends, databases, or multiple APIs. That gets especially annoying for layered `.io`-style games or web games that need more than one local process.
+For a small single-player WASM game, it is convenience: build WASM, serve static files, watch changes, and show errors. For multiplayer or live-service browser games, it becomes the useful abstraction around the game: ports, APIs, logs, dashboards, and local services in one place.
 
-`ebitdock` exists for that layer. It is a lightweight Go-native CLI that builds your Ebitengine game to WASM, serves your existing static web root with the right headers, starts optional local services, watches files, and exposes a compact dashboard for ports, logs, and build status.
+It does not generate your web app, hide Ebitengine, require Node.js, or require Docker. Your project owns its HTML, JS bridge, audio setup, assets, and backend code.
 
-It does not require Node.js, Docker, or a generated browser framework. Your project owns its HTML, JS, audio, assets, and browser bridge code.
+## Why
 
-## Install
+Ebitengine makes the game part pleasant: write Go, compile to WebAssembly, run in the browser.
 
-Required tools:
+The awkward part is everything around the game once it grows beyond a single WASM file:
 
 ```text
-go          Go toolchain, used to install ebitdock and build WASM
-wasmserve   Ebitengine WASM dev server used by ebitdock dev
+game client      Ebitengine WASM
+web shell        static files, audio, JS bridge
+api server       scores, auth, inventory, content
+realtime server  rooms, matchmaking, WebSockets
+database/cache   local state for development
+dashboard        ports, logs, build status
 ```
 
-Install `ebitdock` from this repo:
+`ebitdock dev` is intended to become the one command that starts and tracks that local stack.
+
+## Install
 
 ```sh
 go install ./cmd/ebitdock
 ```
 
-Then install ebitdock's dev tools:
-
-```sh
-ebitdock install tools
-```
-
-That currently installs:
-
-```sh
-go install github.com/hajimehoshi/wasmserve@latest
-```
-
-You can also run that command manually if you prefer.
-
 During local development:
 
 ```sh
 go run ./cmd/ebitdock --help
+```
+
+## Commands
+
+```sh
+ebitdock init [name|.]
+ebitdock dev
+ebitdock build wasm
+ebitdock logs
 ```
 
 ## Quick Start
@@ -53,7 +54,7 @@ ebitdock init
 ebitdock dev
 ```
 
-`init` writes `ebitdock.yaml` if it does not already exist. It does not overwrite or generate your web app.
+`init` writes only `ebitdock.yaml`. It does not overwrite or generate your game, web shell, assets, or backend.
 
 For a basic project folder:
 
@@ -68,51 +69,7 @@ my-game/
   ebitdock.yaml
 ```
 
-Add your Go game package and static web root, then edit the YAML paths to match.
-
-Open the URLs printed by `dev`, usually:
-
-```text
-web        http://localhost:8080
-dashboard  http://localhost:8081
-```
-
-## Commands
-
-```sh
-ebitdock init [name|.]
-ebitdock dev
-ebitdock build wasm
-ebitdock logs
-ebitdock doctor
-ebitdock install tools
-```
-
-## Project Model
-
-Your app owns the static web root:
-
-```text
-static/
-  index.html
-  wasm_exec.js      # written by ebitdock build wasm
-  game.wasm         # written by ebitdock build wasm
-  audio/
-  assets/
-```
-
-Your HTML is responsible for loading Go WASM:
-
-```html
-<script src="./wasm_exec.js"></script>
-<script>
-  const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("./game.wasm"), go.importObject)
-    .then((result) => go.run(result.instance));
-</script>
-```
-
-Browser-specific behavior such as audio unlock, Howler setup, local storage, or JS bridge functions belongs in your project, not in `ebitdock`.
+Edit the YAML paths to match your Go game package and static web root.
 
 ## Configuration
 
@@ -130,20 +87,11 @@ services:
   web:
     root: ./static
     port: 8080
-    ports:
-      - name: web
-        port: 8080
-        url: http://localhost:8080
-    command: ""
 
   api:
     enabled: false
     command: go run ./server
     port: 3001
-    ports:
-      - name: api
-        port: 3001
-        url: http://localhost:3001
 
 dashboard:
   port: 8081
@@ -153,132 +101,57 @@ watch:
     - ./cmd/**/*.go
     - ./internal/**/*.go
     - ./assets/**
-    - ./levels/**
 
   static:
     - ./static/**
 ```
 
-`watch.rebuild` is watched during `dev`; changes are logged and ebitdock notifies `wasmserve`.
+For a minimal game, disable or omit API services. For a live-service game, add the local API/realtime/database processes your project needs.
 
-`watch.static` is watched as part of the user-owned static web app and also notifies `wasmserve`.
+## Project Model
 
-## Dev Mode
-
-`ebitdock dev` starts `wasmserve`, the dashboard server, optional API command, watcher, and project-local logging. `wasmserve` runs from `services.web.root`, so it serves the project-owned browser app.
-
-For this config:
-
-```yaml
-game:
-  package: ./cmd/game
-
-services:
-  web:
-    port: 8080
-```
-
-dev mode runs:
-
-```sh
-cd ./static
-wasmserve -http :8080 ../cmd/game
-```
-
-If `wasmserve` is missing, install it with:
-
-```sh
-ebitdock install tools
-```
-
-Startup output is an aligned table:
+Your project owns the browser app:
 
 ```text
-SERVICE    STATUS    URL/DETAILS
-wasmserve  running   http://localhost:8080
-dashboard  running   http://localhost:8081
-backend    disabled  -
-watch      active    6 patterns
+static/
+  index.html
+  wasm_exec.js      # written by ebitdock build wasm
+  game.wasm         # written by ebitdock build wasm
+  audio/
+  assets/
 ```
 
-Source and static file changes are printed, logged, and sent to `wasmserve` through `/_notify`.
-
-For `wasmserve` to handle dev builds itself, the browser shell must request `main.wasm` during local development. `wasmserve` does not have a flag for a custom dev WASM filename; `game.wasm` is the explicit output used by `ebitdock build wasm`.
-
-A user-owned shell can branch on localhost:
+Your HTML loads Go WASM:
 
 ```html
+<script src="./wasm_exec.js"></script>
 <script>
-  const wasmPath = ["localhost", "127.0.0.1"].includes(location.hostname)
-    ? "main.wasm"
-    : "game.wasm";
-
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch(wasmPath), go.importObject)
+  WebAssembly.instantiateStreaming(fetch("./game.wasm"), go.importObject)
     .then((result) => go.run(result.instance));
-
-  if (wasmPath === "main.wasm") {
-    fetch("/_wait").then((res) => {
-      if (res.ok) location.reload();
-    });
-  }
 </script>
 ```
 
-Projects that already own a local web server can keep using it:
+Browser-specific behavior such as audio unlock, Howler setup, local storage, or JS bridge functions belongs in your project.
 
-```yaml
-services:
-  web:
-    root: ./static
-    port: 8080
-    ports:
-      - name: web
-        port: 8080
-        url: http://localhost:8080
-      - name: admin
-        port: 3000
-        url: http://localhost:3000
-    command: go run .
+## Dev Mode
+
+```sh
+ebitdock dev
 ```
 
-When `services.web.command` is set, `ebitdock dev` starts that command instead of `wasmserve`. Source changes rebuild `game.output`; static changes are logged. This is useful for existing games that serve dynamic development endpoints such as `/config.js`, `/music.json`, asset aliases, auth config, or local API shims from their own Go server.
-
-Use `ports` when a project-owned command exposes more than one listener, such as a game web port plus an API, WebSocket, admin, or metrics port. The single `port` remains the primary browser URL.
-
-Bare numeric ports are also accepted:
-
-```yaml
-ports:
-  - 8080
-  - 3000
-```
-
-For an existing project shaped like:
+Starts the configured web server, dashboard, optional API command, watcher, and initial WASM build.
 
 ```text
-main.go       # local web server
-wasm/         # Ebitengine game package
-static/       # browser shell and assets
+SERVICE    STATUS    URL/DETAILS
+web        running   http://localhost:8080
+dashboard  running   http://localhost:8081
+backend    disabled  -
+wasm       ok        514ms
+watch      active    6 patterns
 ```
 
-the important config is:
-
-```yaml
-game:
-  package: ./wasm
-  output: ./static/game.wasm
-
-services:
-  web:
-    root: ./static
-    port: 8080
-    ports:
-      - name: web
-        port: 8080
-        url: http://localhost:8080
-    command: go run .
-```
+`watch.rebuild` triggers WASM rebuilds. `watch.static` logs static file changes.
 
 ## Build
 
@@ -294,32 +167,15 @@ GOOS=js GOARCH=wasm go build -mod=mod -o ./static/game.wasm ./cmd/game
 
 It also copies the matching `wasm_exec.js` from the installed Go toolchain to the configured `wasm.exec` path.
 
-## Doctor
+## Next
+
+The next planned dev runner is external `wasmserve`:
 
 ```sh
-ebitdock doctor
+go install github.com/hajimehoshi/wasmserve@latest
 ```
 
-Checks the local config and toolchain:
-
-```text
-CHECK       STATUS    DETAILS
-config      ok        ebitdock.yaml
-go          ok        go1.24.4 linux/amd64
-wasmserve   ok        /home/alex/go/bin/wasmserve
-game        ok        ./cmd/game
-web         ok        ./static
-shell       ok        wasmserve dev hooks
-dashboard   ok        :8081
-api         disabled  -
-```
-
-If the browser shell is not wired for wasmserve dev mode, `doctor` reports the exact issue:
-
-```text
-shell       warn      static/index.html loads game.wasm; wasmserve rebuilds only main.wasm during dev
-shell       warn      static/index.html does not wait on /_wait; /_notify will not auto-reload the browser
-```
+`ebitdock` will use it as the Ebitengine WASM dev server while keeping responsibility for orchestration, ports, logs, optional services, and dashboard state.
 
 ## GitHub Checks
 
