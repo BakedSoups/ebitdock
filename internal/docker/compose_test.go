@@ -26,7 +26,7 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 				Enabled:   true,
 				Command:   "go run ./server",
 				Port:      3001,
-				Image:     "golang:1.22",
+				Image:     "golang:1.24",
 				Workdir:   "/app",
 				Env:       map[string]string{"PORT": "3001"},
 				Volumes:   []string{".:/app"},
@@ -41,7 +41,7 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 	if web.Image != "nginx:1.27-alpine" {
 		t.Fatalf("web image = %q", web.Image)
 	}
-	assertStrings(t, web.Ports, []string{"8080:8080"})
+	assertStrings(t, web.Ports, []string{"8080:80"})
 	assertStrings(t, web.Volumes, []string{"./static:/usr/share/nginx/html:ro"})
 
 	api := compose.Services["api"]
@@ -77,7 +77,7 @@ func TestGenerateComposeIncludesGenericServices(t *testing.T) {
 					Enabled:   true,
 					Command:   "go run ./cmd/realtime",
 					Port:      3002,
-					Image:     "golang:1.22",
+					Image:     "golang:1.24",
 					Workdir:   "/app",
 					Volumes:   []string{".:/app"},
 					DependsOn: []string{"api"},
@@ -102,6 +102,32 @@ func TestGenerateComposeIncludesGenericServices(t *testing.T) {
 	}
 	assertStrings(t, realtime.Ports, []string{"3002:3002"})
 	assertStrings(t, realtime.DependsOn, []string{"api"})
+}
+
+func TestGenerateComposeDeclaresNamedVolumes(t *testing.T) {
+	cfg := config.Config{
+		Project: "demo",
+		Services: config.ServicesConfig{
+			Extra: map[string]config.ServiceConfig{
+				"database": {
+					Enabled: true,
+					Kind:    "postgres",
+					Image:   "postgres:16-alpine",
+					Port:    5432,
+					Volumes: []string{"demo-db:/var/lib/postgresql/data", "./migrations:/docker-entrypoint-initdb.d:ro"},
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+
+	compose := GenerateCompose(cfg)
+	if _, ok := compose.Volumes["demo-db"]; !ok {
+		t.Fatalf("named volume missing from compose volumes: %#v", compose.Volumes)
+	}
+	if _, ok := compose.Volumes["./migrations"]; ok {
+		t.Fatalf("bind mount should not be declared as named volume: %#v", compose.Volumes)
+	}
 }
 
 func TestWriteComposeCreatesConfiguredFile(t *testing.T) {
@@ -133,6 +159,8 @@ func TestWriteComposeCreatesConfiguredFile(t *testing.T) {
 	if _, ok := parsed.Services["web"]; !ok {
 		t.Fatalf("web service missing from %#v", parsed.Services)
 	}
+	wantVolume := filepath.Join(root, "static") + ":/usr/share/nginx/html:ro"
+	assertStrings(t, parsed.Services["web"].Volumes, []string{wantVolume})
 }
 
 func assertStrings(t *testing.T, got, want []string) {

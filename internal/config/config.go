@@ -209,7 +209,7 @@ func (c *Config) SetDefaults() {
 		c.Docker.ComposeFile = ".ebitdock/compose.yaml"
 	}
 	if c.Docker.GoImage == "" {
-		c.Docker.GoImage = "golang:1.22"
+		c.Docker.GoImage = "golang:1.24"
 	}
 	if c.Checks.BeforeRebuild.Command == "" {
 		c.Checks.BeforeRebuild.Command = "go test " + c.Game.Package

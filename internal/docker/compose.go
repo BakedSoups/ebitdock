@@ -17,6 +17,7 @@ import (
 type ComposeFile struct {
 	Name     string                    `yaml:"name,omitempty"`
 	Services map[string]ComposeService `yaml:"services"`
+	Volumes  map[string]struct{}       `yaml:"volumes,omitempty"`
 }
 
 // ComposeService represents one project service container.
@@ -33,13 +34,22 @@ type ComposeService struct {
 
 // GenerateCompose builds the compose model from normalized ebitdock config.
 func GenerateCompose(cfg config.Config) ComposeFile {
+	return generateCompose("", cfg)
+}
+
+func generateCompose(root string, cfg config.Config) ComposeFile {
 	services := map[string]ComposeService{}
+	volumes := map[string]struct{}{}
 	for name, service := range cfg.EnabledServices() {
-		services[name] = composeService(service)
+		services[name] = composeService(root, service)
+		for _, volume := range namedVolumes(service.Volumes) {
+			volumes[volume] = struct{}{}
+		}
 	}
 	return ComposeFile{
 		Name:     cfg.Project,
 		Services: services,
+		Volumes:  volumes,
 	}
 }
 
@@ -49,7 +59,7 @@ func WriteCompose(root string, cfg config.Config) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(GenerateCompose(cfg))
+	data, err := yaml.Marshal(generateCompose(root, cfg))
 	if err != nil {
 		return "", err
 	}
@@ -59,19 +69,39 @@ func WriteCompose(root string, cfg config.Config) (string, error) {
 	return path, nil
 }
 
-func composeService(service config.ServiceConfig) ComposeService {
+func composeService(root string, service config.ServiceConfig) ComposeService {
 	out := ComposeService{
 		Image:       service.Image,
 		WorkingDir:  service.Workdir,
 		Command:     service.Command,
 		Environment: service.Env,
-		Volumes:     append([]string(nil), service.Volumes...),
-		Ports:       composePorts(service.Ports),
+		Volumes:     normalizeBindVolumes(root, service.Volumes),
+		Ports:       composePorts(service),
 		DependsOn:   append([]string(nil), service.DependsOn...),
 	}
 	if service.Dockerfile != "" {
 		out.Build = dockerfileBuildPath(service.Dockerfile)
 		out.Image = ""
+	}
+	return out
+}
+
+func normalizeBindVolumes(root string, volumes []string) []string {
+	out := make([]string, 0, len(volumes))
+	for _, volume := range volumes {
+		if root == "" {
+			out = append(out, volume)
+			continue
+		}
+		host, rest, ok := strings.Cut(volume, ":")
+		if !ok || host == "" || isNamedVolumeHost(host) {
+			out = append(out, volume)
+			continue
+		}
+		if !filepath.IsAbs(host) {
+			host = filepath.Join(root, host)
+		}
+		out = append(out, filepath.Clean(host)+":"+rest)
 	}
 	return out
 }
@@ -87,14 +117,37 @@ func dockerfileBuildPath(path string) string {
 	return dir
 }
 
-func composePorts(ports []config.PortConfig) []string {
-	out := make([]string, 0, len(ports))
-	for _, port := range ports {
+func composePorts(service config.ServiceConfig) []string {
+	out := make([]string, 0, len(service.Ports))
+	for _, port := range service.Ports {
 		if port.Port == 0 {
 			continue
 		}
-		value := strconv.Itoa(port.Port)
-		out = append(out, fmt.Sprintf("%s:%s", value, value))
+		host := strconv.Itoa(port.Port)
+		target := host
+		if service.Kind == "static" {
+			target = "80"
+		}
+		out = append(out, fmt.Sprintf("%s:%s", host, target))
 	}
 	return out
+}
+
+func namedVolumes(volumes []string) []string {
+	var out []string
+	for _, volume := range volumes {
+		name, _, ok := strings.Cut(volume, ":")
+		if !ok || name == "" {
+			continue
+		}
+		if !isNamedVolumeHost(name) {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+func isNamedVolumeHost(host string) bool {
+	return !strings.HasPrefix(host, ".") && !strings.HasPrefix(host, "/") && !strings.HasPrefix(host, "~")
 }

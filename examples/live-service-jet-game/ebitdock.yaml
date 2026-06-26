@@ -10,7 +10,7 @@ wasm:
 docker:
   enabled: true
   compose_file: ./.ebitdock/compose.yaml
-  go_image: golang:1.22
+  go_image: golang:1.24
 
 checks:
   before_rebuild:
@@ -21,7 +21,7 @@ services:
   web:
     kind: static
     root: ./static
-    port: 8080
+    port: 8090
     image: nginx:1.27-alpine
     workdir: /usr/share/nginx/html
     volumes:
@@ -32,7 +32,7 @@ services:
     enabled: true
     command: go run ./cmd/api
     port: 3001
-    image: golang:1.22
+    image: golang:1.24
     workdir: /app
     env:
       PORT: "3001"
@@ -47,7 +47,7 @@ services:
     enabled: true
     command: go run ./cmd/realtime
     port: 3002
-    image: golang:1.22
+    image: golang:1.24
     workdir: /app
     env:
       PORT: "3002"
@@ -62,7 +62,7 @@ services:
     enabled: true
     command: go run ./cmd/admin
     port: 9090
-    image: golang:1.22
+    image: golang:1.24
     workdir: /app
     env:
       PORT: "9090"
@@ -87,7 +87,7 @@ services:
       - orbit-snake-db:/var/lib/postgresql/data
 
 dashboard:
-  port: 8081
+  port: 8091
 
 watch:
   rebuild:

@@ -98,7 +98,7 @@ No heavy asset requirement for the first version.
 
 ## Why Multiple Ports Are Needed
 
-### `8080` web
+### `8090` web
 
 Serves:
 
@@ -229,13 +229,13 @@ wasm:
 docker:
   enabled: true
   compose_file: ./.ebitdock/compose.yaml
-  go_image: golang:1.22
+  go_image: golang:1.24
 
 services:
   web:
     kind: static
     root: ./static
-    port: 8080
+    port: 8090
     image: nginx:1.27-alpine
     volumes:
       - ./static:/usr/share/nginx/html:ro
@@ -285,7 +285,7 @@ services:
       - orbit-snake-db:/var/lib/postgresql/data
 
 dashboard:
-  port: 8081
+  port: 8091
 
 watch:
   rebuild:
@@ -409,8 +409,8 @@ Useful message types:
 
 Dashboard should show:
 
-- web: `http://localhost:8080`
-- dashboard: `http://localhost:8081`
+- web: `http://localhost:8090`
+- dashboard: `http://localhost:8091`
 - api: `http://localhost:3001`
 - realtime: `ws://localhost:3002/ws`
 - admin: `http://localhost:9090`
@@ -426,12 +426,12 @@ Terminal output should feel like Docker Compose plus Go tooling:
 
 ```text
 SERVICE     STATUS    PORTS
-web         running   8080->8080
+web         running   8090->8090
 api         running   3001->3001
 realtime    running   3002->3002
 admin       running   9090->9090
 database    running   5432->5432
-dashboard   running   8081
+dashboard   running   8091
 wasm        ok        431ms
 watch       active    9 patterns
 ```

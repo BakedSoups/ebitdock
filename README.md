@@ -93,7 +93,7 @@ wasm:
 docker:
   enabled: true
   compose_file: ./.ebitdock/compose.yaml
-  go_image: golang:1.22
+  go_image: golang:1.24
 
 services:
   web:
@@ -108,7 +108,7 @@ services:
     enabled: false
     command: go run ./server
     port: 3001
-    image: golang:1.22
+    image: golang:1.24
     workdir: /app
     volumes:
       - .:/app

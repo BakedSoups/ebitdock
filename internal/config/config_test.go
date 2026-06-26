@@ -22,8 +22,8 @@ func TestDefaults(t *testing.T) {
 	if cfg.ComposeFile() != ".ebitdock/compose.yaml" {
 		t.Fatalf("ComposeFile() = %q, want .ebitdock/compose.yaml", cfg.ComposeFile())
 	}
-	if cfg.GoImage() != "golang:1.22" {
-		t.Fatalf("GoImage() = %q, want golang:1.22", cfg.GoImage())
+	if cfg.GoImage() != "golang:1.24" {
+		t.Fatalf("GoImage() = %q, want golang:1.24", cfg.GoImage())
 	}
 	if cfg.Services.Web.Image != "nginx:1.27-alpine" {
 		t.Fatalf("web image = %q, want nginx:1.27-alpine", cfg.Services.Web.Image)
@@ -104,7 +104,7 @@ services:
 	if !ok {
 		t.Fatal("realtime service missing")
 	}
-	if realtime.Kind != "go" || realtime.Image != "golang:1.22" || realtime.Workdir != "/app" {
+	if realtime.Kind != "go" || realtime.Image != "golang:1.24" || realtime.Workdir != "/app" {
 		t.Fatalf("realtime defaults not applied: %+v", realtime)
 	}
 	assertStrings(t, realtime.DependsOn, []string{"api"})
