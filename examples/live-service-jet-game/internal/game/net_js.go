@@ -33,20 +33,23 @@ func NewNetClient() *NetClient {
 	return client
 }
 
-func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle float64) {
+func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle float64, speedLevel, damageLevel, fireRateLevel int) {
 	if c.socket.IsUndefined() || c.socket.IsNull() || c.socket.Get("readyState").Int() != 1 {
 		return
 	}
 	msg := protocol.InputMessage{
-		Type:     "input",
-		PlayerID: c.PlayerID,
-		Turn:     turn,
-		Thrust:   thrust,
-		Boost:    boost,
-		Shoot:    shoot,
-		X:        x,
-		Y:        y,
-		Angle:    angle,
+		Type:          "input",
+		PlayerID:      c.PlayerID,
+		Turn:          turn,
+		Thrust:        thrust,
+		Boost:         boost,
+		Shoot:         shoot,
+		X:             x,
+		Y:             y,
+		Angle:         angle,
+		SpeedLevel:    speedLevel,
+		DamageLevel:   damageLevel,
+		FireRateLevel: fireRateLevel,
 	}
 	data, err := json.Marshal(msg)
 	if err == nil {
@@ -78,7 +81,7 @@ func (c *NetClient) connect() {
 	c.socket = socket
 	socket.Set("onopen", js.FuncOf(func(js.Value, []js.Value) any {
 		c.setStatus("connected")
-		c.SendInput(0, false, false, false, 0, 0, 0)
+		c.SendInput(0, false, false, false, 0, 0, 0, 0, 0, 0)
 		return nil
 	}))
 	socket.Set("onclose", js.FuncOf(func(js.Value, []js.Value) any {

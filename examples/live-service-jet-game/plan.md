@@ -10,11 +10,11 @@ The game should be small enough to build, easy to understand visually, and still
 
 Working title: `orbit-raiders`
 
-Players control small spaceships in a shared 2D arena. Each ship leaves a glowing energy trail like a snake. Players collect space crystals to grow their trail, earn scrap, and buy upgrades. Hitting another trail destroys or damages the ship. Bigger ships are stronger but harder to maneuver.
+Players control small spaceships in a shared 2D arena. Players collect scrap dots, buy upgrades, aim with the mouse, and shoot other players. Kills increase score and level, making the ship stronger.
 
 Think:
 
-- `snake.io` style movement and growth
+- `diep.io` style movement, aiming, shooting, and leveling
 - spaceship theme
 - resource pickups
 - simple upgrades
@@ -43,9 +43,9 @@ That makes `ebitdock dev` meaningful without making the game too large.
 2. Client loads profile/upgrades from the API.
 3. Client connects to realtime WebSocket.
 4. Player pilots a ship around the arena.
-5. Player collects crystals to grow and score points.
-6. Trail length increases as crystals are collected.
-7. Player avoids enemy trails and arena hazards.
+5. Player collects scrap dots and scores kills.
+6. Scrap buys speed, damage, and fire-rate upgrades.
+7. Player dodges bullets and fights other players.
 8. Player banks scrap after a run.
 9. Player buys upgrades.
 10. Player re-enters with better stats.
@@ -69,7 +69,7 @@ That makes `ebitdock dev` meaningful without making the game too large.
 - AI ships
 - shield pickup
 - boost pickup
-- rare crystals
+- rare scrap dots
 - team mode
 - leaderboard
 - seasonal/resettable arena
@@ -89,8 +89,8 @@ Keep the visuals simple and readable:
 
 - dark space background
 - ships as triangles or small sprites
-- trails as glowing colored segments
-- crystals as bright polygons
+- bullets as bright projectiles
+- scrap dots as bright polygons
 - planets/asteroids as static obstacles
 - compact HUD for score, length, scrap, upgrades
 
@@ -333,7 +333,7 @@ watch:
 - id
 - player_id
 - score
-- crystals_collected
+- dots_collected
 - ships_destroyed
 - duration_seconds
 - ended_at
@@ -349,7 +349,7 @@ watch:
 - speed
 - alive
 - score
-- trail_segments
+- bullets
 
 ### Crystal
 
@@ -389,7 +389,7 @@ Realtime to client:
 {
   "type": "state",
   "ships": [],
-  "crystals": [],
+  "dots": [],
   "events": []
 }
 ```
@@ -399,7 +399,7 @@ Useful message types:
 - `join`
 - `input`
 - `state`
-- `crystal.collected`
+- `dot.collected`
 - `ship.hit`
 - `ship.dead`
 - `ship.respawn`

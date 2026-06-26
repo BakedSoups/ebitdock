@@ -29,16 +29,19 @@ type Crystal struct {
 
 // ShipState is the realtime shape exchanged by clients and the realtime server.
 type ShipState struct {
-	PlayerID string  `json:"player_id"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-	Angle    float64 `json:"angle"`
-	Speed    float64 `json:"speed"`
-	Alive    bool    `json:"alive"`
-	Score    int     `json:"score"`
-	Level    int     `json:"level"`
-	HP       int     `json:"hp"`
-	MaxHP    int     `json:"max_hp"`
+	PlayerID      string  `json:"player_id"`
+	X             float64 `json:"x"`
+	Y             float64 `json:"y"`
+	Angle         float64 `json:"angle"`
+	Speed         float64 `json:"speed"`
+	Alive         bool    `json:"alive"`
+	Score         int     `json:"score"`
+	Level         int     `json:"level"`
+	HP            int     `json:"hp"`
+	MaxHP         int     `json:"max_hp"`
+	SpeedLevel    int     `json:"speed_level"`
+	DamageLevel   int     `json:"damage_level"`
+	FireRateLevel int     `json:"fire_rate_level"`
 }
 
 // BulletState is a server-owned projectile in the shared arena.

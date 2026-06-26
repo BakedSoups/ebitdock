@@ -110,22 +110,25 @@ func (h *Hub) step(dt float64) {
 			ship.Angle += float64(input.Turn) * 3.2 * dt
 		}
 		if input.Thrust {
-			ship.Speed += 26 * dt
+			ship.Speed += (26 + float64(input.SpeedLevel)*4) * dt
 		}
 		if input.Boost {
 			ship.Speed += 18 * dt
 		}
 		ship.Speed *= 0.95
-		ship.Speed = clamp(ship.Speed, 24, 120)
+		ship.Speed = clamp(ship.Speed, 24, 120+float64(input.SpeedLevel)*12)
 		ship.X += math.Cos(ship.Angle) * ship.Speed * dt
 		ship.Y += math.Sin(ship.Angle) * ship.Speed * dt
 		wrap(&ship.X, 960)
 		wrap(&ship.Y, 640)
+		ship.SpeedLevel = input.SpeedLevel
+		ship.DamageLevel = input.DamageLevel
+		ship.FireRateLevel = input.FireRateLevel
 		h.ships[id] = ship
 		h.cooldowns[id] -= dt
 		if input.Shoot && h.cooldowns[id] <= 0 {
-			h.spawnBullet(ship)
-			h.cooldowns[id] = math.Max(0.12, 0.38-float64(ship.Level)*0.018)
+			h.spawnBullet(ship, input)
+			h.cooldowns[id] = math.Max(0.1, 0.38-float64(ship.Level)*0.018-float64(input.FireRateLevel)*0.035)
 		}
 	}
 	h.stepBullets(dt)
@@ -181,10 +184,10 @@ func spawnShip(playerID string, index int) shared.ShipState {
 	}
 }
 
-func (h *Hub) spawnBullet(ship shared.ShipState) {
+func (h *Hub) spawnBullet(ship shared.ShipState, input protocol.InputMessage) {
 	h.nextBullet++
 	speed := 260 + float64(ship.Level)*8
-	damage := 18 + ship.Level*3
+	damage := 18 + ship.Level*3 + input.DamageLevel*7
 	id := fmt.Sprintf("b-%d", h.nextBullet)
 	h.bullets[id] = shared.BulletState{
 		ID:      id,

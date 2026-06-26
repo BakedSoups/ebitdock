@@ -33,13 +33,6 @@ func drawCrystals(screen *ebiten.Image, crystals []Crystal) {
 	}
 }
 
-func drawTrail(screen *ebiten.Image, ship Ship) {
-	for i, point := range ship.Trail {
-		alpha := uint8(40 + i*180/max(1, len(ship.Trail)))
-		vector.DrawFilledCircle(screen, float32(point.X), float32(point.Y), 5, color.RGBA{R: ship.Color.R, G: ship.Color.G, B: ship.Color.B, A: alpha}, false)
-	}
-}
-
 func drawShip(screen *ebiten.Image, ship Ship) {
 	if !ship.Alive {
 		vector.StrokeCircle(screen, float32(ship.X), float32(ship.Y), 20, 2, color.RGBA{R: 255, G: 90, B: 100, A: 255}, false)

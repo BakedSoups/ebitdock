@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"example.com/orbit-snake/internal/shared"
 )
@@ -42,7 +43,7 @@ func (g *Game) Update() error {
 	turn := 0.045
 	g.lastTurn = 0
 	g.thrust = ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
-	g.boost = ebiten.IsKeyPressed(ebiten.KeySpace) && a.Ship.Scrap > 0
+	g.boost = (ebiten.IsKeyPressed(ebiten.KeyShiftLeft) || ebiten.IsKeyPressed(ebiten.KeyShiftRight)) && a.Ship.Scrap > 0
 	g.shoot = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) || ebiten.IsKeyPressed(ebiten.KeySpace)
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		a.Ship.Angle -= turn
@@ -75,18 +76,10 @@ func (g *Game) Update() error {
 	wrap(&a.Ship.X, ScreenWidth)
 	wrap(&a.Ship.Y, ScreenHeight)
 
-	if a.Tick%3 == 0 {
-		a.Ship.Trail = append(a.Ship.Trail, TrailPoint{X: a.Ship.X, Y: a.Ship.Y})
-		limit := 42 + a.Ship.Score/2
-		if len(a.Ship.Trail) > limit {
-			a.Ship.Trail = a.Ship.Trail[len(a.Ship.Trail)-limit:]
-		}
-	}
-
 	g.collectCrystals()
-	g.checkTrailCollision()
+	g.buyUpgrades()
 	if a.Tick%2 == 0 {
-		g.Net.SendInput(g.lastTurn, g.thrust, g.boost, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle)
+		g.Net.SendInput(g.lastTurn, g.thrust, g.boost, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle, a.Upgrades.Speed, a.Upgrades.Damage, a.Upgrades.FireRate)
 	}
 	return nil
 }
@@ -95,12 +88,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawBackground(screen)
 	drawCrystals(screen, g.Arena.Crystals)
 	drawBullets(screen, g.Net.Bullets())
-	drawTrail(screen, g.Arena.Ship)
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("local scrap %d  server %s", g.Arena.Ship.Scrap, g.selfStats()), 16, 14)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("scrap %d  upgrades speed %d damage %d fire %d  server %s", g.Arena.Ship.Scrap, g.Arena.Upgrades.Speed, g.Arena.Upgrades.Damage, g.Arena.Upgrades.FireRate, g.selfStats()), 16, 14)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("player %s  net %s  peers %d", g.Net.PlayerID, g.Net.Status(), len(g.remoteShips())), 16, 32)
-	ebitenutil.DebugPrintAt(screen, "WASD/arrow move | mouse aim | click/space shoot | kills level you up", 16, 50)
+	ebitenutil.DebugPrintAt(screen, "WASD/arrow move | mouse aim | click/space shoot | shift boost | dots buy 1 speed 2 damage 3 fire", 16, 50)
 	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
 }
 
@@ -115,7 +107,7 @@ func (g *Game) collectCrystals() {
 		if distance(ship.X, ship.Y, crystal.X, crystal.Y) < 16 {
 			ship.Score += crystal.Value
 			ship.Scrap += crystal.Value
-			g.Arena.Message = fmt.Sprintf("+%d crystal", crystal.Value)
+			g.Arena.Message = fmt.Sprintf("+%d scrap dot", crystal.Value)
 			g.Arena.SpawnCrystal()
 			continue
 		}
@@ -124,18 +116,27 @@ func (g *Game) collectCrystals() {
 	g.Arena.Crystals = next
 }
 
-func (g *Game) checkTrailCollision() {
-	ship := &g.Arena.Ship
-	if len(ship.Trail) < 24 {
+func (g *Game) buyUpgrades() {
+	if inpututil.IsKeyJustPressed(ebiten.Key1) {
+		g.buyUpgrade("speed", &g.Arena.Upgrades.Speed)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.Key2) {
+		g.buyUpgrade("damage", &g.Arena.Upgrades.Damage)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.Key3) {
+		g.buyUpgrade("fire", &g.Arena.Upgrades.FireRate)
+	}
+}
+
+func (g *Game) buyUpgrade(name string, level *int) {
+	cost := 4 + (*level * 3)
+	if g.Arena.Ship.Scrap < cost {
+		g.Arena.Message = fmt.Sprintf("%s upgrade needs %d scrap", name, cost)
 		return
 	}
-	for _, point := range ship.Trail[:len(ship.Trail)-18] {
-		if distance(ship.X, ship.Y, point.X, point.Y) < 9 {
-			ship.Alive = false
-			g.Arena.Message = "trail collision: press R to respawn"
-			return
-		}
-	}
+	g.Arena.Ship.Scrap -= cost
+	*level = *level + 1
+	g.Arena.Message = fmt.Sprintf("%s upgraded to %d", name, *level)
 }
 
 func wrap(v *float64, max float64) {

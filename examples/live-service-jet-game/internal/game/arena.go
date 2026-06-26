@@ -17,9 +17,10 @@ type Crystal struct {
 	Value int
 }
 
-type TrailPoint struct {
-	X float64
-	Y float64
+type Upgrades struct {
+	Speed    int
+	Damage   int
+	FireRate int
 }
 
 type Ship struct {
@@ -30,7 +31,6 @@ type Ship struct {
 	Score    int
 	Scrap    int
 	Alive    bool
-	Trail    []TrailPoint
 	Color    color.RGBA
 	Boosting bool
 }
@@ -40,6 +40,7 @@ type Arena struct {
 	Crystals []Crystal
 	Tick     int
 	Message  string
+	Upgrades Upgrades
 }
 
 func NewArena() *Arena {
@@ -52,7 +53,7 @@ func NewArena() *Arena {
 			Alive: true,
 			Color: color.RGBA{R: 75, G: 217, B: 206, A: 255},
 		},
-		Message: "collect crystals, avoid your trail",
+		Message: "collect dots, buy upgrades, battle other tabs",
 	}
 	for i := 0; i < 36; i++ {
 		a.SpawnCrystal()
