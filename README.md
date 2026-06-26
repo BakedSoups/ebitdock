@@ -1,8 +1,8 @@
 # ebitdock
 
-`ebitdock` is a Docker-first local dev CLI for Ebitengine browser games.
+`ebitdock` is a Go-native dev orchestrator for Ebitengine browser games.
 
-I like Ebitengine: it is a great Go game engine that compiles Go code into WebAssembly and stays incredibly lightweight. The hard part is not the game engine. The hard part is port management and containerization when building layered IO games, browser games with backend databases, or games that need communication between multiple APIs. `ebitdock` is the small orchestration layer for that.
+It is built around Go, Ebitengine, WebAssembly, and Docker Compose. It gives browser games a repeatable local stack for the web client, WASM build, backend APIs, realtime services, databases, ports, logs, and a dev dashboard.
 
 It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases.
 
@@ -91,7 +91,6 @@ wasm:
   exec: ./static/wasm_exec.js
 
 docker:
-  enabled: true
   compose_file: ./.ebitdock/compose.yaml
   go_image: golang:1.24
 
@@ -127,7 +126,9 @@ watch:
 
 ## Why This Helps
 
-For a basic single-player WASM game, Docker may be more than you need. For a live-service game, it gives you one repeatable local stack: web client, game WASM build, API server, realtime server, database/cache, ports, logs, and CI-compatible commands.
+Ebitengine keeps the game loop Go-native and lightweight. `ebitdock` handles the surrounding dev orchestration: containerized WASM builds, static web serving, service ports, logs, health, databases, realtime backends, and dashboard visibility.
+
+That makes it useful for simple browser builds and especially for live-service games that need more than one process.
 
 ## GitHub Checks
 

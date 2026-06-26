@@ -75,6 +75,37 @@ func TestDockerServiceFieldsArePreserved(t *testing.T) {
 	}
 }
 
+func TestDockerDefaultsOn(t *testing.T) {
+	cfg := Config{Project: "demo"}
+	cfg.SetDefaults()
+	if !cfg.DockerEnabled() {
+		t.Fatal("DockerEnabled() = false, want true by default")
+	}
+}
+
+func TestDockerModeLocalDisablesDocker(t *testing.T) {
+	cfg := Config{Project: "demo", Docker: DockerConfig{Mode: "local"}}
+	cfg.SetDefaults()
+	if cfg.DockerEnabled() {
+		t.Fatal("DockerEnabled() = true, want false for docker.mode local")
+	}
+}
+
+func TestLegacyDockerEnabledFalseStillDisablesDocker(t *testing.T) {
+	data := []byte(`project: demo
+docker:
+  enabled: false
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.SetDefaults()
+	if cfg.DockerEnabled() {
+		t.Fatal("DockerEnabled() = true, want false for legacy docker.enabled false")
+	}
+}
+
 func TestGenericServicesArePreservedAndDefaulted(t *testing.T) {
 	data := []byte(`project: demo
 services:

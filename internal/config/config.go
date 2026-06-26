@@ -50,8 +50,29 @@ type WASMConfig struct {
 // DockerConfig controls how ebitdock generates and runs docker compose files.
 type DockerConfig struct {
 	Enabled     bool   `yaml:"enabled"`
+	Mode        string `yaml:"mode"`
 	ComposeFile string `yaml:"compose_file"`
 	GoImage     string `yaml:"go_image"`
+
+	enabledSet bool
+}
+
+// UnmarshalYAML keeps docker.enabled working for older configs while allowing
+// the newer docker.mode shape to avoid a top-level feature boolean.
+func (d *DockerConfig) UnmarshalYAML(value *yaml.Node) error {
+	type raw DockerConfig
+	var decoded raw
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value == "enabled" {
+			decoded.enabledSet = true
+			break
+		}
+	}
+	*d = DockerConfig(decoded)
+	return nil
 }
 
 // ChecksConfig contains optional commands that gate dev/build workflows.
@@ -356,7 +377,20 @@ func (c Config) Validate() error {
 
 // DockerEnabled reports whether dev should use docker compose for services.
 func (c Config) DockerEnabled() bool {
-	return c.Docker.Enabled
+	switch strings.ToLower(strings.TrimSpace(c.Docker.Mode)) {
+	case "local", "wasmserve", "off", "disabled":
+		return false
+	case "docker", "compose", "":
+	default:
+		return true
+	}
+	if c.Docker.enabledSet {
+		return c.Docker.Enabled
+	}
+	if c.Docker.Enabled {
+		return true
+	}
+	return true
 }
 
 // ComposeFile returns the project-local docker compose file ebitdock manages.

@@ -228,7 +228,6 @@ wasm:
   exec: ./static/wasm_exec.js
 
 docker:
-  enabled: true
   compose_file: ./.ebitdock/compose.yaml
   go_image: golang:1.24
 
