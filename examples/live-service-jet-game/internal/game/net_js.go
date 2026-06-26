@@ -16,12 +16,14 @@ import (
 )
 
 type NetClient struct {
-	mu       sync.RWMutex
-	PlayerID string
-	status   string
-	socket   js.Value
-	ships    []shared.ShipState
-	bullets  []shared.BulletState
+	mu        sync.RWMutex
+	PlayerID  string
+	status    string
+	socket    js.Value
+	ships     []shared.ShipState
+	crystals  []shared.Crystal
+	bullets   []shared.BulletState
+	collected []string
 }
 
 func NewNetClient() *NetClient {
@@ -37,6 +39,10 @@ func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle f
 	if c.socket.IsUndefined() || c.socket.IsNull() || c.socket.Get("readyState").Int() != 1 {
 		return
 	}
+	c.mu.Lock()
+	collected := append([]string(nil), c.collected...)
+	c.collected = nil
+	c.mu.Unlock()
 	msg := protocol.InputMessage{
 		Type:          "input",
 		PlayerID:      c.PlayerID,
@@ -50,11 +56,21 @@ func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle f
 		SpeedLevel:    speedLevel,
 		DamageLevel:   damageLevel,
 		FireRateLevel: fireRateLevel,
+		CollectedIDs:  collected,
 	}
 	data, err := json.Marshal(msg)
 	if err == nil {
 		c.socket.Call("send", string(data))
 	}
+}
+
+func (c *NetClient) QueueCrystalCollection(id string) {
+	if id == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.collected = append(c.collected, id)
 }
 
 func (c *NetClient) Ships() []shared.ShipState {
@@ -67,6 +83,12 @@ func (c *NetClient) Bullets() []shared.BulletState {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return append([]shared.BulletState(nil), c.bullets...)
+}
+
+func (c *NetClient) Crystals() []shared.Crystal {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return append([]shared.Crystal(nil), c.crystals...)
 }
 
 func (c *NetClient) Status() string {
@@ -100,6 +122,7 @@ func (c *NetClient) connect() {
 		if err := json.Unmarshal([]byte(args[0].Get("data").String()), &state); err == nil {
 			c.mu.Lock()
 			c.ships = state.Ships
+			c.crystals = state.Crystals
 			c.bullets = state.Bullets
 			c.mu.Unlock()
 		}
@@ -114,17 +137,7 @@ func (c *NetClient) setStatus(status string) {
 }
 
 func tabPlayerID() string {
-	storage := js.Global().Get("sessionStorage")
-	if storage.IsUndefined() || storage.IsNull() {
-		return randomPlayerID()
-	}
-	existing := storage.Call("getItem", "orbitSnakePlayerID")
-	if !existing.IsNull() && existing.String() != "" {
-		return existing.String()
-	}
-	id := randomPlayerID()
-	storage.Call("setItem", "orbitSnakePlayerID", id)
-	return id
+	return randomPlayerID()
 }
 
 func randomPlayerID() string {

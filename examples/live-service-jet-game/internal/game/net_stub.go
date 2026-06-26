@@ -14,7 +14,13 @@ func NewNetClient() *NetClient {
 
 func (c *NetClient) SendInput(int, bool, bool, bool, float64, float64, float64, int, int, int) {}
 
+func (c *NetClient) QueueCrystalCollection(string) {}
+
 func (c *NetClient) Ships() []shared.ShipState {
+	return nil
+}
+
+func (c *NetClient) Crystals() []shared.Crystal {
 	return nil
 }
 

@@ -4,18 +4,14 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+
+	"example.com/orbit-snake/internal/shared"
 )
 
 const (
 	ScreenWidth  = 960
 	ScreenHeight = 640
 )
-
-type Crystal struct {
-	X     float64
-	Y     float64
-	Value int
-}
 
 type Upgrades struct {
 	Speed    int
@@ -37,7 +33,7 @@ type Ship struct {
 
 type Arena struct {
 	Ship     Ship
-	Crystals []Crystal
+	Crystals []shared.Crystal
 	Tick     int
 	Message  string
 	Upgrades Upgrades
@@ -62,7 +58,7 @@ func NewArena() *Arena {
 }
 
 func (a *Arena) SpawnCrystal() {
-	a.Crystals = append(a.Crystals, Crystal{
+	a.Crystals = append(a.Crystals, shared.Crystal{
 		X:     32 + rand.Float64()*(ScreenWidth-64),
 		Y:     32 + rand.Float64()*(ScreenHeight-64),
 		Value: 1 + rand.Intn(3),

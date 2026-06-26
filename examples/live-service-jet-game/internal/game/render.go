@@ -25,7 +25,7 @@ func drawBackground(screen *ebiten.Image) {
 	}
 }
 
-func drawCrystals(screen *ebiten.Image, crystals []Crystal) {
+func drawCrystals(screen *ebiten.Image, crystals []shared.Crystal) {
 	for _, crystal := range crystals {
 		r := float32(4 + crystal.Value*2)
 		vector.DrawFilledCircle(screen, float32(crystal.X), float32(crystal.Y), r, color.RGBA{R: 150, G: 105, B: 255, A: 255}, false)

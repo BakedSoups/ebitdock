@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"sort"
 	"sync"
@@ -17,23 +18,30 @@ import (
 )
 
 type Hub struct {
-	mu         sync.RWMutex
-	clients    map[*websocket.Conn]bool
-	ships      map[string]shared.ShipState
-	inputs     map[string]protocol.InputMessage
-	bullets    map[string]shared.BulletState
-	cooldowns  map[string]float64
-	nextBullet int
+	mu          sync.RWMutex
+	clients     map[*websocket.Conn]bool
+	ships       map[string]shared.ShipState
+	inputs      map[string]protocol.InputMessage
+	crystals    map[string]shared.Crystal
+	bullets     map[string]shared.BulletState
+	cooldowns   map[string]float64
+	nextCrystal int
+	nextBullet  int
 }
 
 func NewHub() *Hub {
-	return &Hub{
+	h := &Hub{
 		clients:   map[*websocket.Conn]bool{},
 		ships:     map[string]shared.ShipState{},
 		inputs:    map[string]protocol.InputMessage{},
+		crystals:  map[string]shared.Crystal{},
 		bullets:   map[string]shared.BulletState{},
 		cooldowns: map[string]float64{},
 	}
+	for len(h.crystals) < 36 {
+		h.spawnCrystalLocked()
+	}
+	return h
 }
 
 func (h *Hub) Routes() http.Handler {
@@ -47,10 +55,10 @@ func (h *Hub) Routes() http.Handler {
 }
 
 func (h *Hub) Run() {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for range ticker.C {
-		h.step(0.1)
+		h.step(0.05)
 		h.broadcastState()
 	}
 }
@@ -109,21 +117,10 @@ func (h *Hub) step(dt float64) {
 		} else {
 			ship.Angle += float64(input.Turn) * 3.2 * dt
 		}
-		if input.Thrust {
-			ship.Speed += (26 + float64(input.SpeedLevel)*4) * dt
-		}
-		if input.Boost {
-			ship.Speed += 18 * dt
-		}
-		ship.Speed *= 0.95
-		ship.Speed = clamp(ship.Speed, 24, 120+float64(input.SpeedLevel)*12)
-		ship.X += math.Cos(ship.Angle) * ship.Speed * dt
-		ship.Y += math.Sin(ship.Angle) * ship.Speed * dt
-		wrap(&ship.X, 960)
-		wrap(&ship.Y, 640)
 		ship.SpeedLevel = input.SpeedLevel
 		ship.DamageLevel = input.DamageLevel
 		ship.FireRateLevel = input.FireRateLevel
+		h.collectCrystalsLocked(&ship, input.CollectedIDs)
 		h.ships[id] = ship
 		h.cooldowns[id] -= dt
 		if input.Shoot && h.cooldowns[id] <= 0 {
@@ -144,13 +141,20 @@ func (h *Hub) broadcastState() {
 	for _, bullet := range h.bullets {
 		bullets = append(bullets, bullet)
 	}
+	crystals := make([]shared.Crystal, 0, len(h.crystals))
+	for _, crystal := range h.crystals {
+		crystals = append(crystals, crystal)
+	}
 	sort.Slice(ships, func(i, j int) bool {
 		return ships[i].PlayerID < ships[j].PlayerID
 	})
 	sort.Slice(bullets, func(i, j int) bool {
 		return bullets[i].ID < bullets[j].ID
 	})
-	message := protocol.StateMessage{Type: "state", Ships: ships, Bullets: bullets}
+	sort.Slice(crystals, func(i, j int) bool {
+		return crystals[i].ID < crystals[j].ID
+	})
+	message := protocol.StateMessage{Type: "state", Ships: ships, Crystals: crystals, Bullets: bullets}
 	data, _ := json.Marshal(message)
 	clients := make([]*websocket.Conn, 0, len(h.clients))
 	for conn := range h.clients {
@@ -165,6 +169,40 @@ func (h *Hub) broadcastState() {
 			h.mu.Unlock()
 			_ = conn.Close()
 		}
+	}
+}
+
+func (h *Hub) collectCrystalsLocked(ship *shared.ShipState, ids []string) {
+	for _, id := range ids {
+		crystal, ok := h.crystals[id]
+		if !ok {
+			continue
+		}
+		if math.Hypot(ship.X-crystal.X, ship.Y-crystal.Y) > 28 {
+			continue
+		}
+		ship.Score += crystal.Value
+		delete(h.crystals, id)
+		h.spawnCrystalLocked()
+	}
+}
+
+func (h *Hub) spawnCrystalLocked() {
+	h.nextCrystal++
+	value := 1 + rand.Intn(3)
+	rarity := "common"
+	if value == 2 {
+		rarity = "bright"
+	} else if value == 3 {
+		rarity = "rare"
+	}
+	id := fmt.Sprintf("c-%d", h.nextCrystal)
+	h.crystals[id] = shared.Crystal{
+		ID:     id,
+		X:      32 + rand.Float64()*(960-64),
+		Y:      32 + rand.Float64()*(640-64),
+		Value:  value,
+		Rarity: rarity,
 	}
 }
 

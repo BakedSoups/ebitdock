@@ -86,7 +86,7 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	drawBackground(screen)
-	drawCrystals(screen, g.Arena.Crystals)
+	drawCrystals(screen, g.visibleCrystals())
 	drawBullets(screen, g.Net.Bullets())
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
@@ -102,18 +102,28 @@ func (g *Game) Layout(int, int) (int, int) {
 
 func (g *Game) collectCrystals() {
 	ship := &g.Arena.Ship
+	crystals := g.Net.Crystals()
+	if len(crystals) == 0 {
+		crystals = g.Arena.Crystals
+	}
 	next := g.Arena.Crystals[:0]
-	for _, crystal := range g.Arena.Crystals {
+	for _, crystal := range crystals {
 		if distance(ship.X, ship.Y, crystal.X, crystal.Y) < 16 {
 			ship.Score += crystal.Value
 			ship.Scrap += crystal.Value
 			g.Arena.Message = fmt.Sprintf("+%d scrap dot", crystal.Value)
-			g.Arena.SpawnCrystal()
+			if crystal.ID != "" {
+				g.Net.QueueCrystalCollection(crystal.ID)
+			} else {
+				g.Arena.SpawnCrystal()
+			}
 			continue
 		}
 		next = append(next, crystal)
 	}
-	g.Arena.Crystals = next
+	if len(g.Net.Crystals()) == 0 {
+		g.Arena.Crystals = next
+	}
 }
 
 func (g *Game) buyUpgrades() {
@@ -172,6 +182,14 @@ func (g *Game) remoteShips() []shared.ShipState {
 		out = append(out, ship)
 	}
 	return out
+}
+
+func (g *Game) visibleCrystals() []shared.Crystal {
+	crystals := g.Net.Crystals()
+	if len(crystals) > 0 {
+		return crystals
+	}
+	return g.Arena.Crystals
 }
 
 func (g *Game) selfStats() string {
