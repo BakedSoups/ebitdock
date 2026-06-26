@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"ebitdock/internal/build"
+	"ebitdock/internal/checks"
 	"ebitdock/internal/cliui"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dashboard"
@@ -66,10 +67,8 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 			fmt.Fprintln(os.Stdout, "warn\t"+hint)
 		}
 	} else {
-		result := build.WASM(ctx, root, cfg, status)
-		printBuildResult(os.Stdout, result)
-		if result.Err != nil {
-			return result.Err
+		if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
+			return err
 		}
 	}
 
@@ -102,10 +101,7 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 				status.AppendLog("static file changed")
 			} else {
 				if webMode == webModeCommand {
-					status.AppendLog("source file changed; rebuilding wasm")
-					result := build.WASM(ctx, root, cfg, status)
-					printBuildResult(os.Stdout, result)
-					if result.Err != nil {
+					if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
 						continue
 					}
 				} else {
@@ -158,6 +154,28 @@ func printBuildResult(out io.Writer, result build.Result) {
 		return
 	}
 	fmt.Fprintln(out, "build\tok\t"+result.Duration.String())
+}
+
+func checkedBuild(ctx context.Context, root string, cfg config.Config, status *process.Status, out io.Writer) error {
+	if cfg.BeforeRebuildCheckEnabled() {
+		result := checks.Run(ctx, root, cfg.BeforeRebuildCheckCommand(), status)
+		printCheckResult(out, result)
+		if result.Err != nil {
+			return result.Err
+		}
+	}
+	status.AppendLog("rebuilding wasm")
+	result := build.WASM(ctx, root, cfg, status)
+	printBuildResult(out, result)
+	return result.Err
+}
+
+func printCheckResult(out io.Writer, result checks.Result) {
+	if result.Err != nil {
+		fmt.Fprintln(out, "check\tfailed\t"+result.Err.Error())
+		return
+	}
+	fmt.Fprintln(out, "check\tok\t"+result.Duration.String())
 }
 
 func webServiceName(mode webMode) string {

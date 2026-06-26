@@ -37,6 +37,20 @@ func TestWebCommand(t *testing.T) {
 	}
 }
 
+func TestBeforeRebuildCheckDefaultUsesGamePackage(t *testing.T) {
+	cfg := Config{
+		Project: "demo",
+		Game:    GameConfig{Package: "./wasm"},
+	}
+	cfg.SetDefaults()
+	if cfg.BeforeRebuildCheckEnabled() {
+		t.Fatal("BeforeRebuildCheckEnabled() = true, want false")
+	}
+	if cfg.BeforeRebuildCheckCommand() != "go test ./wasm" {
+		t.Fatalf("BeforeRebuildCheckCommand() = %q, want go test ./wasm", cfg.BeforeRebuildCheckCommand())
+	}
+}
+
 func TestServicePortsIncludePrimaryAndDedupeExtras(t *testing.T) {
 	cfg := Config{
 		Project: "demo",

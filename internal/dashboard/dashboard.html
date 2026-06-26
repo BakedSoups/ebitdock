@@ -47,6 +47,11 @@
         <div id="server-port" class="muted">:{{ .ServerPort }}</div>
       </section>
       <section>
+        <h2>Check</h2>
+        <div><span id="check-dot" class="dot {{ if eq .CheckStatus "failed" }}bad{{ end }}"></span><span id="check-status">{{ .CheckStatus }}</span></div>
+        <div id="check-duration" class="muted">{{ .CheckDuration }}</div>
+      </section>
+      <section>
         <h2>WASM Build</h2>
         <div><span id="build-dot" class="dot {{ if eq .BuildStatus "failed" }}bad{{ end }}"></span><span id="build-status">{{ .BuildStatus }}</span></div>
         <div class="bar"><span></span></div>
@@ -81,6 +86,9 @@
       backendDot: document.getElementById("backend-dot"),
       backendStatus: document.getElementById("backend-status"),
       serverPort: document.getElementById("server-port"),
+      checkDot: document.getElementById("check-dot"),
+      checkStatus: document.getElementById("check-status"),
+      checkDuration: document.getElementById("check-duration"),
       buildDot: document.getElementById("build-dot"),
       buildStatus: document.getElementById("build-status"),
       buildDuration: document.getElementById("build-duration"),
@@ -100,6 +108,9 @@
       els.backendStatus.textContent = data.serverStatus;
       els.serverPort.textContent = ":" + data.serverPort;
       els.backendDot.classList.toggle("bad", data.serverStatus !== "running");
+      els.checkStatus.textContent = data.checkEnabled ? data.checkStatus : "disabled";
+      els.checkDuration.textContent = data.checkEnabled ? (data.checkDuration || data.checkCommand || "") : "";
+      els.checkDot.classList.toggle("bad", data.checkStatus === "failed");
       els.buildStatus.textContent = data.buildStatus;
       els.buildDuration.textContent = data.buildDuration || "";
       els.buildDot.classList.toggle("bad", data.buildStatus === "failed");

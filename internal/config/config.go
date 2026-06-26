@@ -17,6 +17,7 @@ type Config struct {
 	Game      GameConfig      `yaml:"game"`
 	WASM      WASMConfig      `yaml:"wasm"`
 	Services  ServicesConfig  `yaml:"services"`
+	Checks    ChecksConfig    `yaml:"checks"`
 	Dashboard DashboardConfig `yaml:"dashboard"`
 	Watch     WatchConfig     `yaml:"watch"`
 
@@ -43,6 +44,17 @@ type WebConfig struct {
 // WASMConfig controls where the Go runtime shim is copied during build wasm.
 type WASMConfig struct {
 	Exec string `yaml:"exec"`
+}
+
+// ChecksConfig contains optional commands that gate dev/build workflows.
+type ChecksConfig struct {
+	BeforeRebuild CheckConfig `yaml:"before_rebuild"`
+}
+
+// CheckConfig describes one optional command check.
+type CheckConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Command string `yaml:"command"`
 }
 
 // ServicesConfig groups local processes that dev mode can start and track.
@@ -155,6 +167,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.WASM.Exec == "" {
 		c.WASM.Exec = "./static/wasm_exec.js"
+	}
+	if c.Checks.BeforeRebuild.Command == "" {
+		c.Checks.BeforeRebuild.Command = "go test " + c.Game.Package
 	}
 	if c.Services.Web.Root == "" {
 		c.Services.Web.Root = c.Web.Root
@@ -294,6 +309,17 @@ func (c Config) APIPorts() []PortConfig {
 // WASMExecPath returns where the matching Go wasm_exec.js should be copied.
 func (c Config) WASMExecPath() string {
 	return c.WASM.Exec
+}
+
+// BeforeRebuildCheckEnabled reports whether dev should gate rebuilds on a
+// configured command.
+func (c Config) BeforeRebuildCheckEnabled() bool {
+	return c.Checks.BeforeRebuild.Enabled
+}
+
+// BeforeRebuildCheckCommand returns the command used before dev rebuilds.
+func (c Config) BeforeRebuildCheckCommand() string {
+	return c.Checks.BeforeRebuild.Command
 }
 
 // RebuildWatch returns patterns that should trigger a WASM rebuild.

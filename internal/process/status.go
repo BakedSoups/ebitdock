@@ -31,6 +31,10 @@ type state struct {
 	ServerPort    int          `json:"serverPort"`
 	ServerPorts   []PortStatus `json:"serverPorts"`
 	ServerStatus  string       `json:"serverStatus"`
+	CheckEnabled  bool         `json:"checkEnabled"`
+	CheckCommand  string       `json:"checkCommand"`
+	CheckStatus   string       `json:"checkStatus"`
+	CheckDuration string       `json:"checkDuration"`
 	BuildStatus   string       `json:"buildStatus"`
 	BuildDuration string       `json:"buildDuration"`
 	LastBuildAt   time.Time    `json:"lastBuildAt"`
@@ -58,6 +62,9 @@ func NewStatus(cfg config.Config) *Status {
 			ServerPort:    cfg.APIPort(),
 			ServerPorts:   cfg.APIPorts(),
 			ServerStatus:  "disabled",
+			CheckEnabled:  cfg.BeforeRebuildCheckEnabled(),
+			CheckCommand:  cfg.BeforeRebuildCheckCommand(),
+			CheckStatus:   "idle",
 			BuildStatus:   "idle",
 			Watched:       cfg.WatchPatterns(),
 		},
@@ -76,6 +83,19 @@ func (s *Status) Snapshot() state {
 	cp.Watched = append([]string(nil), s.Watched...)
 	cp.Logs = append([]string(nil), s.Logs...)
 	return cp
+}
+
+// SetCheck records the latest configured command check state.
+func (s *Status) SetCheck(status, duration string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.CheckStatus = status
+	s.CheckDuration = duration
+	if err != nil {
+		s.CurrentErrors = []string{err.Error()}
+	} else {
+		s.CurrentErrors = nil
+	}
 }
 
 // SetBuild records the latest WASM build state and any current error.
