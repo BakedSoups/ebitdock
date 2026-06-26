@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"ebitdock/internal/build"
 	"ebitdock/internal/checks"
 	"ebitdock/internal/cliui"
 	"ebitdock/internal/config"
 	"ebitdock/internal/dashboard"
+	dock "ebitdock/internal/docker"
 	"ebitdock/internal/process"
 	"ebitdock/internal/tools"
 	"ebitdock/internal/watch"
@@ -25,6 +28,9 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
 	status.AppendLog("dev starting")
+	if cfg.DockerEnabled() {
+		return runDocker(ctx, root, cfg, status)
+	}
 
 	web, webMode, err := startWeb(ctx, root, cfg, status)
 	if err != nil {
@@ -118,6 +124,105 @@ func Run(ctx context.Context, root string, cfg config.Config) error {
 				}
 			}
 		}
+	}
+}
+
+func runDocker(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
+	if err := dock.RequireDocker(nil); err != nil {
+		return err
+	}
+	composePath, err := dock.WriteCompose(root, cfg)
+	if err != nil {
+		return err
+	}
+	status.AppendLog("wrote compose file: " + composePath)
+
+	if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
+		return err
+	}
+
+	name, args, err := dock.ComposeCommand(cfg.ComposeFile(), "up", "--build", "--remove-orphans")
+	if err != nil {
+		return err
+	}
+	var setBackend func(string)
+	if cfg.APIEnabled() {
+		setBackend = status.SetServer
+	}
+	stack, err := process.StartArgs(ctx, root, name, args, "docker", status, setBackend)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		stack.Stop()
+		dockerComposeDown(root, cfg, status)
+	}()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := dashboard.RunQuiet(ctx, root, cfg, status); err != nil {
+			errs <- err
+		}
+	}()
+
+	changes, watchErrs, err := watch.Changes(ctx, root, cfg.WatchPatterns())
+	if err != nil {
+		return err
+	}
+	cliui.DevStatus(os.Stdout, cfg, "docker")
+
+	for {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return nil
+		case err := <-stack.Done():
+			if err != nil {
+				return err
+			}
+			return nil
+		case err := <-errs:
+			return err
+		case err := <-watchErrs:
+			if err != nil {
+				status.AppendLog("watch error: " + err.Error())
+			}
+		case path := <-changes:
+			if path == "" || isGeneratedBuildOutput(root, cfg, path) {
+				continue
+			}
+			status.AppendLog("change detected: " + path)
+			fmt.Fprintln(os.Stdout, "change\t"+path)
+			if isStaticSourceChange(root, cfg, path) {
+				status.AppendLog("static file changed")
+				continue
+			}
+			if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
+				continue
+			}
+		}
+	}
+}
+
+func dockerComposeDown(root string, cfg config.Config, status *process.Status) {
+	name, args, err := dock.ComposeCommand(cfg.ComposeFile(), "down", "--remove-orphans")
+	if err != nil {
+		status.AppendLog("docker down skipped: " + err.Error())
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		status.AppendLog(string(out))
+	}
+	if err != nil {
+		status.AppendLog("docker down failed: " + err.Error())
 	}
 }
 
