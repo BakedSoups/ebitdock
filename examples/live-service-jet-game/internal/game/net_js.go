@@ -21,6 +21,7 @@ type NetClient struct {
 	status   string
 	socket   js.Value
 	ships    []shared.ShipState
+	bullets  []shared.BulletState
 }
 
 func NewNetClient() *NetClient {
@@ -32,7 +33,7 @@ func NewNetClient() *NetClient {
 	return client
 }
 
-func (c *NetClient) SendInput(turn int, thrust, boost bool) {
+func (c *NetClient) SendInput(turn int, thrust, boost, shoot bool, x, y, angle float64) {
 	if c.socket.IsUndefined() || c.socket.IsNull() || c.socket.Get("readyState").Int() != 1 {
 		return
 	}
@@ -42,6 +43,10 @@ func (c *NetClient) SendInput(turn int, thrust, boost bool) {
 		Turn:     turn,
 		Thrust:   thrust,
 		Boost:    boost,
+		Shoot:    shoot,
+		X:        x,
+		Y:        y,
+		Angle:    angle,
 	}
 	data, err := json.Marshal(msg)
 	if err == nil {
@@ -53,6 +58,12 @@ func (c *NetClient) Ships() []shared.ShipState {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return append([]shared.ShipState(nil), c.ships...)
+}
+
+func (c *NetClient) Bullets() []shared.BulletState {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return append([]shared.BulletState(nil), c.bullets...)
 }
 
 func (c *NetClient) Status() string {
@@ -67,7 +78,7 @@ func (c *NetClient) connect() {
 	c.socket = socket
 	socket.Set("onopen", js.FuncOf(func(js.Value, []js.Value) any {
 		c.setStatus("connected")
-		c.SendInput(0, false, false)
+		c.SendInput(0, false, false, false, 0, 0, 0)
 		return nil
 	}))
 	socket.Set("onclose", js.FuncOf(func(js.Value, []js.Value) any {
@@ -86,6 +97,7 @@ func (c *NetClient) connect() {
 		if err := json.Unmarshal([]byte(args[0].Get("data").String()), &state); err == nil {
 			c.mu.Lock()
 			c.ships = state.Ships
+			c.bullets = state.Bullets
 			c.mu.Unlock()
 		}
 		return nil

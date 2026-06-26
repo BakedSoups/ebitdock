@@ -18,6 +18,7 @@ type Game struct {
 	lastTurn int
 	thrust   bool
 	boost    bool
+	shoot    bool
 }
 
 func New() *Game {
@@ -42,6 +43,7 @@ func (g *Game) Update() error {
 	g.lastTurn = 0
 	g.thrust = ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
 	g.boost = ebiten.IsKeyPressed(ebiten.KeySpace) && a.Ship.Scrap > 0
+	g.shoot = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) || ebiten.IsKeyPressed(ebiten.KeySpace)
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		a.Ship.Angle -= turn
 		g.lastTurn = -1
@@ -49,6 +51,9 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
 		a.Ship.Angle += turn
 		g.lastTurn = 1
+	}
+	if mx, my := ebiten.CursorPosition(); mx != 0 || my != 0 {
+		a.Ship.Angle = math.Atan2(float64(my)-a.Ship.Y, float64(mx)-a.Ship.X)
 	}
 
 	thrust := 0.02
@@ -80,8 +85,8 @@ func (g *Game) Update() error {
 
 	g.collectCrystals()
 	g.checkTrailCollision()
-	if a.Tick%4 == 0 {
-		g.Net.SendInput(g.lastTurn, g.thrust, g.boost)
+	if a.Tick%2 == 0 {
+		g.Net.SendInput(g.lastTurn, g.thrust, g.boost, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle)
 	}
 	return nil
 }
@@ -89,12 +94,13 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	drawBackground(screen)
 	drawCrystals(screen, g.Arena.Crystals)
+	drawBullets(screen, g.Net.Bullets())
 	drawTrail(screen, g.Arena.Ship)
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("score %d  scrap %d  trail %d", g.Arena.Ship.Score, g.Arena.Ship.Scrap, len(g.Arena.Ship.Trail)), 16, 14)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("local scrap %d  server %s", g.Arena.Ship.Scrap, g.selfStats()), 16, 14)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("player %s  net %s  peers %d", g.Net.PlayerID, g.Net.Status(), len(g.remoteShips())), 16, 32)
-	ebitenutil.DebugPrintAt(screen, "WASD/arrow turn + thrust | space boost | R respawn", 16, 50)
+	ebitenutil.DebugPrintAt(screen, "WASD/arrow move | mouse aim | click/space shoot | kills level you up", 16, 50)
 	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
 }
 
@@ -165,4 +171,13 @@ func (g *Game) remoteShips() []shared.ShipState {
 		out = append(out, ship)
 	}
 	return out
+}
+
+func (g *Game) selfStats() string {
+	for _, ship := range g.Net.Ships() {
+		if ship.PlayerID == g.Net.PlayerID {
+			return fmt.Sprintf("hp %d/%d lvl %d kills %d", ship.HP, ship.MaxHP, ship.Level, ship.Score)
+		}
+	}
+	return "waiting"
 }

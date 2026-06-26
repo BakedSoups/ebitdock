@@ -36,4 +36,18 @@ type ShipState struct {
 	Speed    float64 `json:"speed"`
 	Alive    bool    `json:"alive"`
 	Score    int     `json:"score"`
+	Level    int     `json:"level"`
+	HP       int     `json:"hp"`
+	MaxHP    int     `json:"max_hp"`
+}
+
+// BulletState is a server-owned projectile in the shared arena.
+type BulletState struct {
+	ID      string  `json:"id"`
+	OwnerID string  `json:"owner_id"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	VX      float64 `json:"vx"`
+	VY      float64 `json:"vy"`
+	Damage  int     `json:"damage"`
 }

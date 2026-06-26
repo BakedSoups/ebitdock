@@ -4,11 +4,11 @@
 
 This example should show why `ebitdock` is useful for Ebitengine games that are more than a standalone WASM file.
 
-The game should be small enough to build, easy to understand visually, and still require multiple local services. A Snake.io-style spaceship game fits that well: simple 2D movement, clear multiplayer state, pickups, upgrades, persistence, and realtime networking.
+The game should be small enough to build, easy to understand visually, and still require multiple local services. A Diep.io-style spaceship game fits that well: simple 2D movement, clear multiplayer state, pickups, upgrades, persistence, and realtime networking.
 
 ## Working Concept
 
-Working title: `orbit-snake`
+Working title: `orbit-raiders`
 
 Players control small spaceships in a shared 2D arena. Each ship leaves a glowing energy trail like a snake. Players collect space crystals to grow their trail, earn scrap, and buy upgrades. Hitting another trail destroys or damages the ship. Bigger ships are stronger but harder to maneuver.
 
@@ -29,7 +29,7 @@ This game is small, but it naturally needs a multi-port stack:
 browser client   Ebitengine WASM game
 web service      serves static files and WASM
 api service      player profile, upgrades, inventory
-realtime service WebSocket positions, trails, pickups, collisions
+realtime service WebSocket positions, bullets, pickups, hits, kills
 database         persistent player state
 admin service    local debug/reset tools
 dashboard        ebitdock ports, logs, builds, service status
@@ -55,9 +55,9 @@ That makes `ebitdock dev` meaningful without making the game too large.
 - top-down 2D arena
 - one ship per connected player
 - smooth turning movement
-- energy trail behind each ship
-- crystal pickups
-- trail collision
+- bullets fired from each ship
+- scrap pickups and combat rewards
+- bullet combat
 - death/respawn
 - score counter
 - one upgrade path
@@ -133,8 +133,8 @@ Owns live arena state:
 
 - connected players
 - ship positions
-- trail segments
-- crystal spawns
+- bullets and ship state
+- scrap spawns
 - collisions
 - deaths
 - respawns
@@ -161,10 +161,10 @@ Persists:
 Local-only debug service:
 
 - reset arena
-- spawn crystals
+- spawn scrap
 - kill test player
 - inspect connected players
-- inspect current pickups/trails
+- inspect current pickups/bullets
 
 ## Proposed Folder Shape
 
@@ -210,14 +210,14 @@ examples/live-service-jet-game/
   assets/
 ```
 
-The folder name can be renamed later to `examples/orbit-snake/`.
+The folder name can be renamed later to `examples/orbit-raiders/`.
 
 ## Target Ebitdock Config
 
 This intentionally pushes the next `ebitdock` requirement: generic named services. Current code supports fixed `web` and `api`; this example should drive support for `realtime`, `database`, and `admin`.
 
 ```yaml
-project: orbit-snake
+project: orbit-raiders
 
 game:
   package: ./cmd/game
@@ -282,7 +282,7 @@ services:
       POSTGRES_PASSWORD: game
       POSTGRES_DB: game
     volumes:
-      - orbit-snake-db:/var/lib/postgresql/data
+      - orbit-raiders-db:/var/lib/postgresql/data
 
 dashboard:
   port: 8091
@@ -471,10 +471,10 @@ Generate compose for all enabled services:
 Build the Ebitengine client with local-only simulation first:
 
 - ship movement
-- trail rendering
-- crystal pickups
+- bullet rendering
+- scrap pickups and combat rewards
 - score
-- death on trail collision
+- death on bullet combat
 
 ### Phase 5: API And Realtime
 
@@ -510,8 +510,8 @@ The example is successful when:
 
 - `ebitdock dev` starts web, api, realtime, admin, database, and dashboard
 - browser loads the Ebitengine WASM client
-- player can steer a ship and collect crystals
-- ship trail grows after collecting crystals
+- player can steer a ship and collect scrap or kill players
+- player levels up after kills
 - realtime service receives input messages
 - API stores scrap/upgrades
 - database persists profile state across restarts
@@ -533,6 +533,6 @@ The example is successful when:
 
 - Should collisions be client-predicted or fully server authoritative?
 - Should the realtime service tick at 10, 20, or 30 Hz for the MVP?
-- Should the first version allow shooting, or only trail collision?
+- Should the first version allow shooting, or only bullet combat?
 - Should `ebitdock logs` stream compose logs or read its own grouped log files?
 - Should ebitdock restart services from file changes or rely on Docker Compose watch later?

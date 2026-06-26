@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -16,17 +17,22 @@ import (
 )
 
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[*websocket.Conn]bool
-	ships   map[string]shared.ShipState
-	inputs  map[string]protocol.InputMessage
+	mu         sync.RWMutex
+	clients    map[*websocket.Conn]bool
+	ships      map[string]shared.ShipState
+	inputs     map[string]protocol.InputMessage
+	bullets    map[string]shared.BulletState
+	cooldowns  map[string]float64
+	nextBullet int
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients: map[*websocket.Conn]bool{},
-		ships:   map[string]shared.ShipState{},
-		inputs:  map[string]protocol.InputMessage{},
+		clients:   map[*websocket.Conn]bool{},
+		ships:     map[string]shared.ShipState{},
+		inputs:    map[string]protocol.InputMessage{},
+		bullets:   map[string]shared.BulletState{},
+		cooldowns: map[string]float64{},
 	}
 }
 
@@ -94,7 +100,15 @@ func (h *Hub) step(dt float64) {
 	for id, ship := range h.ships {
 		input := h.inputs[id]
 		ship.Alive = true
-		ship.Angle += float64(input.Turn) * 3.2 * dt
+		if input.X != 0 || input.Y != 0 {
+			ship.X = input.X
+			ship.Y = input.Y
+		}
+		if input.Angle != 0 {
+			ship.Angle = input.Angle
+		} else {
+			ship.Angle += float64(input.Turn) * 3.2 * dt
+		}
 		if input.Thrust {
 			ship.Speed += 26 * dt
 		}
@@ -108,7 +122,13 @@ func (h *Hub) step(dt float64) {
 		wrap(&ship.X, 960)
 		wrap(&ship.Y, 640)
 		h.ships[id] = ship
+		h.cooldowns[id] -= dt
+		if input.Shoot && h.cooldowns[id] <= 0 {
+			h.spawnBullet(ship)
+			h.cooldowns[id] = math.Max(0.12, 0.38-float64(ship.Level)*0.018)
+		}
 	}
+	h.stepBullets(dt)
 }
 
 func (h *Hub) broadcastState() {
@@ -117,10 +137,17 @@ func (h *Hub) broadcastState() {
 	for _, ship := range h.ships {
 		ships = append(ships, ship)
 	}
+	bullets := make([]shared.BulletState, 0, len(h.bullets))
+	for _, bullet := range h.bullets {
+		bullets = append(bullets, bullet)
+	}
 	sort.Slice(ships, func(i, j int) bool {
 		return ships[i].PlayerID < ships[j].PlayerID
 	})
-	message := protocol.StateMessage{Type: "state", Ships: ships}
+	sort.Slice(bullets, func(i, j int) bool {
+		return bullets[i].ID < bullets[j].ID
+	})
+	message := protocol.StateMessage{Type: "state", Ships: ships, Bullets: bullets}
 	data, _ := json.Marshal(message)
 	clients := make([]*websocket.Conn, 0, len(h.clients))
 	for conn := range h.clients {
@@ -139,6 +166,8 @@ func (h *Hub) broadcastState() {
 }
 
 func spawnShip(playerID string, index int) shared.ShipState {
+	level := 1
+	maxHP := 100
 	return shared.ShipState{
 		PlayerID: playerID,
 		X:        160 + float64(index%5)*120,
@@ -146,6 +175,63 @@ func spawnShip(playerID string, index int) shared.ShipState {
 		Angle:    float64(index) * 0.8,
 		Speed:    42,
 		Alive:    true,
+		Level:    level,
+		HP:       maxHP,
+		MaxHP:    maxHP,
+	}
+}
+
+func (h *Hub) spawnBullet(ship shared.ShipState) {
+	h.nextBullet++
+	speed := 260 + float64(ship.Level)*8
+	damage := 18 + ship.Level*3
+	id := fmt.Sprintf("b-%d", h.nextBullet)
+	h.bullets[id] = shared.BulletState{
+		ID:      id,
+		OwnerID: ship.PlayerID,
+		X:       ship.X + math.Cos(ship.Angle)*20,
+		Y:       ship.Y + math.Sin(ship.Angle)*20,
+		VX:      math.Cos(ship.Angle) * speed,
+		VY:      math.Sin(ship.Angle) * speed,
+		Damage:  damage,
+	}
+}
+
+func (h *Hub) stepBullets(dt float64) {
+	for id, bullet := range h.bullets {
+		bullet.X += bullet.VX * dt
+		bullet.Y += bullet.VY * dt
+		if bullet.X < -30 || bullet.X > 990 || bullet.Y < -30 || bullet.Y > 670 {
+			delete(h.bullets, id)
+			continue
+		}
+		hit := ""
+		for playerID, ship := range h.ships {
+			if playerID == bullet.OwnerID || !ship.Alive {
+				continue
+			}
+			if math.Hypot(ship.X-bullet.X, ship.Y-bullet.Y) <= 18 {
+				hit = playerID
+				break
+			}
+		}
+		if hit == "" {
+			h.bullets[id] = bullet
+			continue
+		}
+		delete(h.bullets, id)
+		target := h.ships[hit]
+		target.HP -= bullet.Damage
+		if target.HP <= 0 {
+			killer := h.ships[bullet.OwnerID]
+			killer.Score++
+			killer.Level = 1 + killer.Score/2
+			killer.MaxHP = 100 + killer.Level*12
+			killer.HP = min(killer.MaxHP, killer.HP+35)
+			h.ships[bullet.OwnerID] = killer
+			target = spawnShip(hit, len(h.ships))
+		}
+		h.ships[hit] = target
 	}
 }
 
@@ -166,4 +252,11 @@ func clamp(v, min, max float64) float64 {
 		return max
 	}
 	return v
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
