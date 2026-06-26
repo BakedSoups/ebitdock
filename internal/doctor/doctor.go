@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"ebitdock/internal/config"
+	"ebitdock/internal/docker"
 	"ebitdock/internal/tools"
 )
 
@@ -35,7 +36,15 @@ func Run(w io.Writer, root string) error {
 		fmt.Fprintf(tw, "go\tok\t%s\n", detail)
 	}
 
-	if cfg.UsesWebCommand() {
+	if cfg.DockerEnabled() {
+		if path, err := docker.CheckDocker(nil); err != nil {
+			fmt.Fprintf(tw, "docker\tfailed\t%v\n", err)
+			hasProblems = true
+		} else {
+			fmt.Fprintf(tw, "docker\tok\t%s\n", path)
+		}
+		fmt.Fprintf(tw, "compose\tok\t%s\n", cfg.ComposeFile())
+	} else if cfg.UsesWebCommand() {
 		fmt.Fprintf(tw, "wasmserve\tskipped\tservices.web.command: %s\n", cfg.WebCommand())
 	} else {
 		if path, err := exec.LookPath("wasmserve"); err != nil {
