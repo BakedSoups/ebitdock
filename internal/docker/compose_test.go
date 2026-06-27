@@ -14,7 +14,7 @@ import (
 func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 	cfg := config.Config{
 		Project: "demo",
-		Docker:  config.DockerConfig{Enabled: true},
+		Docker:  config.DockerConfig{},
 		Services: config.ServicesConfig{
 			Web: config.ServiceConfig{
 				Root:    "./static",

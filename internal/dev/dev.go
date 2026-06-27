@@ -18,118 +18,16 @@ import (
 	"github.com/BakedSoups/ebitdock/internal/dashboard"
 	dock "github.com/BakedSoups/ebitdock/internal/docker"
 	"github.com/BakedSoups/ebitdock/internal/process"
-	"github.com/BakedSoups/ebitdock/internal/tools"
 	"github.com/BakedSoups/ebitdock/internal/watch"
 )
 
-// Run coordinates the local development session: wasmserve, dashboard,
-// optional API process, project logging, and file watching.
+// Run coordinates the Docker-backed development session: Compose services,
+// dashboard, project logging, and file watching.
 func Run(ctx context.Context, root string, cfg config.Config) error {
 	status := process.NewStatus(cfg)
 	status.SetLogFile(filepath.Join(root, ".ebitdock", "ebitdock.log"))
 	status.AppendLog("dev starting")
-	if err := tools.CheckWasmserve(nil); err != nil {
-		return err
-	}
-	status.AppendLog("wasmserve ready")
-	if cfg.DockerEnabled() {
-		return runDocker(ctx, root, cfg, status)
-	}
-
-	web, webMode, err := startWeb(ctx, root, cfg, status)
-	if err != nil {
-		return err
-	}
-	defer web.Stop()
-
-	var backend *process.Command
-	if cfg.APIEnabled() {
-		cmd, err := process.Start(ctx, root, cfg.APICommand(), status)
-		if err != nil {
-			return err
-		}
-		backend = cmd
-		defer backend.Stop()
-	}
-
-	// Dashboard is independent from wasmserve. If it fails to bind a port, the
-	// error is surfaced through errs and dev exits.
-	var wg sync.WaitGroup
-	errs := make(chan error, 2)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := dashboard.RunQuiet(ctx, root, cfg, status); err != nil {
-			errs <- err
-		}
-	}()
-
-	// Watch source and static paths so dashboard/logs reflect local activity.
-	// wasmserve owns browser-target compilation during dev.
-	changes, watchErrs, err := watch.Changes(ctx, root, cfg.WatchPatterns())
-	if err != nil {
-		return err
-	}
-	cliui.DevStatus(os.Stdout, cfg, webServiceName(webMode))
-	if webMode == webModeWasmserve {
-		for _, hint := range tools.BrowserShellHints(root, cfg.StaticRoot()) {
-			status.AppendLog("dev hint: " + hint)
-			fmt.Fprintln(os.Stdout, "warn\t"+hint)
-		}
-	} else {
-		if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
-			return err
-		}
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			wg.Wait()
-			return nil
-		case err := <-web.Done():
-			if err != nil {
-				return err
-			}
-			return nil
-		case err := <-errs:
-			return err
-		case err := <-watchErrs:
-			if err != nil {
-				status.AppendLog("watch error: " + err.Error())
-			}
-		case path := <-changes:
-			if path == "" {
-				continue
-			}
-			if isGeneratedBuildOutput(root, cfg, path) {
-				continue
-			}
-			status.SetLastChange(path)
-			status.AppendLog("change detected: " + path)
-			fmt.Fprintln(os.Stdout, "change\t"+path)
-			if isStaticSourceChange(root, cfg, path) {
-				status.AppendLog("static file changed")
-			} else {
-				if webMode == webModeCommand {
-					if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
-						continue
-					}
-				} else {
-					status.AppendLog("source file changed; notifying wasmserve")
-				}
-			}
-			if webMode == webModeWasmserve {
-				if err := tools.NotifyWasmserve(ctx, cfg.WebPort()); err != nil {
-					status.AppendLog("wasmserve notify failed: " + err.Error())
-					fmt.Fprintln(os.Stdout, "notify\tfailed\t"+err.Error())
-				} else {
-					status.AppendLog("wasmserve notified")
-					fmt.Fprintln(os.Stdout, "notify\tok")
-				}
-			}
-		}
-	}
+	return runDocker(ctx, root, cfg, status)
 }
 
 func runDocker(ctx context.Context, root string, cfg config.Config, status *process.Status) error {
@@ -234,33 +132,6 @@ func dockerComposeDown(root string, cfg config.Config, status *process.Status) {
 	}
 }
 
-type webMode string
-
-const (
-	webModeCommand   webMode = "command"
-	webModeWasmserve webMode = "wasmserve"
-)
-
-func startWeb(ctx context.Context, root string, cfg config.Config, status *process.Status) (*process.Command, webMode, error) {
-	if cfg.UsesWebCommand() {
-		cmd, err := process.StartCommand(ctx, root, cfg.WebCommand(), "web", status, nil)
-		return cmd, webModeCommand, err
-	}
-	if err := tools.CheckWasmserve(nil); err != nil {
-		return nil, "", err
-	}
-	wasmserveDir, wasmserveTarget, err := wasmserveWorkingDirAndTarget(root, cfg)
-	if err != nil {
-		return nil, "", err
-	}
-	wasmserveName, wasmserveArgs, err := tools.WasmserveCommand(cfg.WebPort(), wasmserveTarget)
-	if err != nil {
-		return nil, "", err
-	}
-	cmd, err := process.StartArgs(ctx, wasmserveDir, wasmserveName, wasmserveArgs, "wasmserve", status, nil)
-	return cmd, webModeWasmserve, err
-}
-
 func printBuildResult(out io.Writer, result build.Result) {
 	cliui.Result(out, "build", result.Duration, result.Err)
 	if result.Err != nil {
@@ -279,7 +150,8 @@ func checkedBuild(ctx context.Context, root string, cfg config.Config, status *p
 		}
 	}
 	status.AppendLog("rebuilding wasm")
-	activity := cliui.StartActivity(out, "build", "running", fmt.Sprintf("GOOS=js GOARCH=wasm go build -o %s %s", cfg.Game.Output, cfg.Game.Package))
+	buildDetail := fmt.Sprintf("GOOS=js GOARCH=wasm go build %s -o %s %s", strings.Join(cfg.WASMBuildFlags(), " "), cfg.Game.Output, cfg.Game.Package)
+	activity := cliui.StartActivity(out, "build", "running", strings.Join(strings.Fields(buildDetail), " "))
 	result := build.WASM(ctx, root, cfg, status)
 	activity.Stop()
 	printBuildResult(out, result)
@@ -299,13 +171,6 @@ func printStepLog(out io.Writer, logText string) {
 		return
 	}
 	fmt.Fprintln(out, logText)
-}
-
-func webServiceName(mode webMode) string {
-	if mode == webModeCommand {
-		return "web"
-	}
-	return "wasmserve"
 }
 
 // isGeneratedBuildOutput prevents rebuild loops when the builder writes
@@ -334,45 +199,6 @@ func isStaticSourceChange(root string, cfg config.Config, path string) bool {
 		return false
 	}
 	return containsPath(root, cfg.StaticRoot(), abs)
-}
-
-func wasmserveWorkingDirAndTarget(root string, cfg config.Config) (dir, target string, err error) {
-	staticDir, err := filepath.Abs(filepath.Join(root, cfg.StaticRoot()))
-	if err != nil {
-		return "", "", err
-	}
-	if info, err := os.Stat(staticDir); err != nil {
-		if os.IsNotExist(err) {
-			return "", "", fmt.Errorf("services.web.root %q does not exist\nresolved path: %s\ncreate it or update services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
-		}
-		return "", "", fmt.Errorf("check services.web.root %q at %s: %w", cfg.StaticRoot(), staticDir, err)
-	} else if !info.IsDir() {
-		return "", "", fmt.Errorf("services.web.root %q is not a directory\nresolved path: %s\nupdate services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
-	}
-
-	if !isLocalPackage(cfg.Game.Package) {
-		return staticDir, cfg.Game.Package, nil
-	}
-	gameDir, err := filepath.Abs(filepath.Join(root, cfg.Game.Package))
-	if err != nil {
-		return "", "", err
-	}
-	rel, err := filepath.Rel(staticDir, gameDir)
-	if err != nil {
-		return "", "", err
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == "." {
-		return staticDir, ".", nil
-	}
-	if !strings.HasPrefix(rel, ".") {
-		rel = "./" + rel
-	}
-	return staticDir, rel, nil
-}
-
-func isLocalPackage(pkg string) bool {
-	return pkg == "." || strings.HasPrefix(pkg, "./") || strings.HasPrefix(pkg, "../") || filepath.IsAbs(pkg)
 }
 
 // containsPath is a path-containment check based on filepath.Rel, avoiding

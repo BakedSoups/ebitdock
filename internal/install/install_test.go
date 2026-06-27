@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestToolsReportsMissingGo(t *testing.T) {
+func TestToolsReportsMissingDocker(t *testing.T) {
 	oldPath := os.Getenv("PATH")
 	t.Cleanup(func() {
 		_ = os.Setenv("PATH", oldPath)
@@ -17,12 +17,12 @@ func TestToolsReportsMissingGo(t *testing.T) {
 	}
 	var out bytes.Buffer
 	err := Tools(&out)
-	if err == nil {
-		t.Fatal("expected missing go error")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"go executable not found", "ebitdock install tools"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q did not contain %q", err, want)
+	for _, want := range []string{"docker not found", "Docker Desktop", "ebitdock doctor"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output %q did not contain %q", out.String(), want)
 		}
 	}
 }

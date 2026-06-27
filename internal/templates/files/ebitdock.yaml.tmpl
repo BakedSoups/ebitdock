@@ -6,6 +6,8 @@ game:
 
 wasm:
   exec: {{ .WASMExec }}
+  build_flags:
+    - -buildvcs=false
 
 docker:
   compose_file: ./.ebitdock/compose.yaml

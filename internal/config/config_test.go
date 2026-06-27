@@ -19,6 +19,7 @@ func TestDefaults(t *testing.T) {
 	if cfg.Game.Output == "" || cfg.WASMExecPath() == "" || len(cfg.WatchPatterns()) == 0 {
 		t.Fatalf("defaults were not populated: %+v", cfg)
 	}
+	assertStrings(t, cfg.WASMBuildFlags(), []string{"-buildvcs=false"})
 	if cfg.ComposeFile() != ".ebitdock/compose.yaml" {
 		t.Fatalf("ComposeFile() = %q, want .ebitdock/compose.yaml", cfg.ComposeFile())
 	}
@@ -49,7 +50,7 @@ func TestWebCommand(t *testing.T) {
 func TestDockerServiceFieldsArePreserved(t *testing.T) {
 	cfg := Config{
 		Project: "demo",
-		Docker:  DockerConfig{Enabled: true, ComposeFile: "./compose.dev.yaml", GoImage: "golang:1.25"},
+		Docker:  DockerConfig{ComposeFile: "./compose.dev.yaml", GoImage: "golang:1.25"},
 		Services: ServicesConfig{
 			Web: ServiceConfig{
 				Image:   "caddy:2",
@@ -60,9 +61,6 @@ func TestDockerServiceFieldsArePreserved(t *testing.T) {
 		},
 	}
 	cfg.SetDefaults()
-	if !cfg.DockerEnabled() {
-		t.Fatal("DockerEnabled() = false, want true")
-	}
 	if cfg.ComposeFile() != "./compose.dev.yaml" {
 		t.Fatalf("ComposeFile() = %q, want ./compose.dev.yaml", cfg.ComposeFile())
 	}
@@ -72,37 +70,6 @@ func TestDockerServiceFieldsArePreserved(t *testing.T) {
 	assertStrings(t, cfg.Services.Web.Volumes, []string{"./public:/srv:ro"})
 	if cfg.Services.Web.Env["MODE"] != "dev" {
 		t.Fatalf("web env not preserved: %+v", cfg.Services.Web.Env)
-	}
-}
-
-func TestDockerDefaultsOn(t *testing.T) {
-	cfg := Config{Project: "demo"}
-	cfg.SetDefaults()
-	if !cfg.DockerEnabled() {
-		t.Fatal("DockerEnabled() = false, want true by default")
-	}
-}
-
-func TestDockerModeLocalDisablesDocker(t *testing.T) {
-	cfg := Config{Project: "demo", Docker: DockerConfig{Mode: "local"}}
-	cfg.SetDefaults()
-	if cfg.DockerEnabled() {
-		t.Fatal("DockerEnabled() = true, want false for docker.mode local")
-	}
-}
-
-func TestLegacyDockerEnabledFalseStillDisablesDocker(t *testing.T) {
-	data := []byte(`project: demo
-docker:
-  enabled: false
-`)
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	cfg.SetDefaults()
-	if cfg.DockerEnabled() {
-		t.Fatal("DockerEnabled() = true, want false for legacy docker.enabled false")
 	}
 }
 

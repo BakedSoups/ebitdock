@@ -14,7 +14,7 @@ func TestDockerBuildCommandUsesGoImageAndProjectMount(t *testing.T) {
 	root := t.TempDir()
 	cfg := config.Config{
 		Project: "demo",
-		Docker:  config.DockerConfig{Enabled: true, GoImage: "golang:1.25"},
+		Docker:  config.DockerConfig{GoImage: "golang:1.25"},
 		Game:    config.GameConfig{Package: "./cmd/game", Output: "./static/game.wasm"},
 		WASM:    config.WASMConfig{Exec: "./static/wasm_exec.js"},
 	}
@@ -40,7 +40,7 @@ func TestDockerBuildCommandUsesGoImageAndProjectMount(t *testing.T) {
 		t.Fatalf("args prefix = %#v, want %#v", args[:len(wantPrefix)], wantPrefix)
 	}
 	script := args[len(args)-1]
-	for _, want := range []string{"go build -mod=mod", "/app/static/game.wasm", "./cmd/game", "/app/static/wasm_exec.js"} {
+	for _, want := range []string{"go build -mod=mod", "'-buildvcs=false'", "/app/static/game.wasm", "./cmd/game", "/app/static/wasm_exec.js"} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("script %q does not contain %q", script, want)
 		}
@@ -58,7 +58,7 @@ func TestDockerBuildCommandUsesNestedModuleWorkdir(t *testing.T) {
 	}
 	cfg := config.Config{
 		Project: "demo",
-		Docker:  config.DockerConfig{Enabled: true, GoImage: "golang:1.25"},
+		Docker:  config.DockerConfig{GoImage: "golang:1.25"},
 		Game:    config.GameConfig{Package: "./game", Output: "./static/game.wasm"},
 		WASM:    config.WASMConfig{Exec: "./static/wasm_exec.js"},
 	}
@@ -71,7 +71,35 @@ func TestDockerBuildCommandUsesNestedModuleWorkdir(t *testing.T) {
 	if args[5] != "/app/game" {
 		t.Fatalf("workdir = %q, want /app/game", args[5])
 	}
-	if !strings.Contains(args[len(args)-1], "go build -mod=mod -o '/app/static/game.wasm' '.'") {
+	if !strings.Contains(args[len(args)-1], "go build -mod=mod '-buildvcs=false' -o '/app/static/game.wasm' '.'") {
 		t.Fatalf("script did not build nested module from dot: %q", args[len(args)-1])
+	}
+}
+
+func TestDockerBuildCommandUsesConfiguredBuildFlags(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{
+		Project: "demo",
+		Docker:  config.DockerConfig{GoImage: "golang:1.25"},
+		Game:    config.GameConfig{Package: "./cmd/game", Output: "./static/game.wasm"},
+		WASM: config.WASMConfig{
+			Exec:       "./static/wasm_exec.js",
+			BuildFlags: []string{"-tags=debug", "-trimpath"},
+		},
+	}
+	cfg.SetDefaults()
+
+	_, args, err := dockerBuildCommand(root, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := args[len(args)-1]
+	for _, want := range []string{"'-tags=debug'", "'-trimpath'"} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("script %q does not contain %q", script, want)
+		}
+	}
+	if strings.Contains(script, "-buildvcs=false") {
+		t.Fatalf("script should not include default flag when build_flags is configured: %q", script)
 	}
 }

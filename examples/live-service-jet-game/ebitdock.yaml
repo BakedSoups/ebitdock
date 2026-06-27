@@ -6,6 +6,8 @@ game:
 
 wasm:
   exec: ./static/wasm_exec.js
+  build_flags:
+    - -buildvcs=false
 
 docker:
   compose_file: ./.ebitdock/compose.yaml

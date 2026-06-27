@@ -42,37 +42,16 @@ type WebConfig struct {
 	DashboardPort int    `yaml:"dashboard_port"`
 }
 
-// WASMConfig controls where the Go runtime shim is copied during build wasm.
+// WASMConfig controls WASM build behavior.
 type WASMConfig struct {
-	Exec string `yaml:"exec"`
+	Exec       string   `yaml:"exec"`
+	BuildFlags []string `yaml:"build_flags"`
 }
 
 // DockerConfig controls how ebitdock generates and runs docker compose files.
 type DockerConfig struct {
-	Enabled     bool   `yaml:"enabled"`
-	Mode        string `yaml:"mode"`
 	ComposeFile string `yaml:"compose_file"`
 	GoImage     string `yaml:"go_image"`
-
-	enabledSet bool
-}
-
-// UnmarshalYAML keeps docker.enabled working for older configs while allowing
-// the newer docker.mode shape to avoid a top-level feature boolean.
-func (d *DockerConfig) UnmarshalYAML(value *yaml.Node) error {
-	type raw DockerConfig
-	var decoded raw
-	if err := value.Decode(&decoded); err != nil {
-		return err
-	}
-	for i := 0; i+1 < len(value.Content); i += 2 {
-		if value.Content[i].Value == "enabled" {
-			decoded.enabledSet = true
-			break
-		}
-	}
-	*d = DockerConfig(decoded)
-	return nil
 }
 
 // ChecksConfig contains optional commands that gate dev/build workflows.
@@ -86,7 +65,7 @@ type CheckConfig struct {
 	Command string `yaml:"command"`
 }
 
-// ServicesConfig groups local processes that dev mode can start and track.
+// ServicesConfig groups project services that ebitdock writes into Compose.
 type ServicesConfig struct {
 	Web   ServiceConfig            `yaml:"web"`
 	API   ServiceConfig            `yaml:"api"`
@@ -225,6 +204,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.WASM.Exec == "" {
 		c.WASM.Exec = "./static/wasm_exec.js"
+	}
+	if c.WASM.BuildFlags == nil {
+		c.WASM.BuildFlags = []string{"-buildvcs=false"}
 	}
 	if c.Docker.ComposeFile == "" {
 		c.Docker.ComposeFile = ".ebitdock/compose.yaml"
@@ -375,24 +357,6 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// DockerEnabled reports whether dev should use docker compose for services.
-func (c Config) DockerEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(c.Docker.Mode)) {
-	case "local", "wasmserve", "off", "disabled":
-		return false
-	case "docker", "compose", "":
-	default:
-		return true
-	}
-	if c.Docker.enabledSet {
-		return c.Docker.Enabled
-	}
-	if c.Docker.Enabled {
-		return true
-	}
-	return true
-}
-
 // ComposeFile returns the project-local docker compose file ebitdock manages.
 func (c Config) ComposeFile() string {
 	return c.Docker.ComposeFile
@@ -401,6 +365,11 @@ func (c Config) ComposeFile() string {
 // GoImage returns the Go image used for containerized tool commands.
 func (c Config) GoImage() string {
 	return c.Docker.GoImage
+}
+
+// WASMBuildFlags returns extra flags passed to go build for the browser build.
+func (c Config) WASMBuildFlags() []string {
+	return append([]string(nil), c.WASM.BuildFlags...)
 }
 
 // StaticRoot returns the directory served as the browser app.
@@ -413,8 +382,7 @@ func (c Config) WebCommand() string {
 	return c.Services.Web.Command
 }
 
-// UsesWebCommand reports whether dev should run a project-owned web server
-// instead of wasmserve.
+// UsesWebCommand reports whether the web service has a project-owned command.
 func (c Config) UsesWebCommand() bool {
 	return c.Services.Web.Command != ""
 }

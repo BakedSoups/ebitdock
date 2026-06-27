@@ -12,7 +12,6 @@ import (
 
 	"github.com/BakedSoups/ebitdock/internal/config"
 	"github.com/BakedSoups/ebitdock/internal/docker"
-	"github.com/BakedSoups/ebitdock/internal/tools"
 )
 
 // Run checks the local project and toolchain needed by ebitdock commands.
@@ -36,24 +35,13 @@ func Run(w io.Writer, root string) error {
 		fmt.Fprintf(tw, "go\tok\t%s\n", detail)
 	}
 
-	if cfg.DockerEnabled() {
-		if path, err := docker.CheckDocker(nil); err != nil {
-			fmt.Fprintf(tw, "docker\tfailed\t%v\n", err)
-			hasProblems = true
-		} else {
-			fmt.Fprintf(tw, "docker\tok\t%s\n", path)
-		}
-		fmt.Fprintf(tw, "compose\tok\t%s\n", cfg.ComposeFile())
-	} else {
-		fmt.Fprintln(tw, "docker\tskipped\tdocker.mode local")
-	}
-
-	if path, err := exec.LookPath("wasmserve"); err != nil {
-		fmt.Fprintf(tw, "wasmserve\tfailed\tinstall with: %s\n", tools.WasmserveInstallCommand)
+	if path, err := docker.CheckDocker(nil); err != nil {
+		fmt.Fprintf(tw, "docker\tfailed\t%v\n", err)
 		hasProblems = true
 	} else {
-		fmt.Fprintf(tw, "wasmserve\tok\t%s\n", path)
+		fmt.Fprintf(tw, "docker\tok\t%s\n", path)
 	}
+	fmt.Fprintf(tw, "compose\tok\t%s\n", cfg.ComposeFile())
 
 	if detail, ok := packageDetail(root, cfg.Game.Package); !ok {
 		fmt.Fprintf(tw, "game\tfailed\t%s\n", detail)
@@ -68,15 +56,7 @@ func Run(w io.Writer, root string) error {
 	} else {
 		fmt.Fprintf(tw, "web\twarn\t%s does not exist at %s\n", cfg.StaticRoot(), staticPath)
 	}
-	if cfg.UsesWebCommand() {
-		fmt.Fprintln(tw, "shell\tskipped\tproject web command owns browser dev flow")
-	} else if hints := tools.BrowserShellHints(root, cfg.StaticRoot()); len(hints) == 0 {
-		fmt.Fprintln(tw, "shell\tok\twasmserve dev hooks")
-	} else {
-		for _, hint := range hints {
-			fmt.Fprintf(tw, "shell\twarn\t%s\n", hint)
-		}
-	}
+	fmt.Fprintln(tw, "shell\tok\tserved by Docker Compose web service")
 
 	fmt.Fprintf(tw, "dashboard\tok\t:%d\n", cfg.DashboardPort())
 	if cfg.APIEnabled() {
