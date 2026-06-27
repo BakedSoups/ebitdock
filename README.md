@@ -1,6 +1,10 @@
 # ebitdock
 
 `ebitdock` is a Go-native dev orchestrator for Ebitengine browser games.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ae9adc1b-b700-4d4b-a323-1cd6fb137cda" width="120" valign="middle">
+  <img src="https://github.com/user-attachments/assets/232c0ddf-930e-45f1-be24-e2bb97bc28f2" width="120" valign="middle">
+</p>
 
 It is built around Go, Ebitengine, WebAssembly, wasmserve, and Docker Compose. It gives browser games a repeatable local stack for the web client, WASM build, backend APIs, realtime services, databases, ports, logs, and a dev dashboard.
 
