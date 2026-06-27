@@ -6,6 +6,24 @@ It is built around Go, Ebitengine, WebAssembly, wasmserve, and Docker Compose. I
 
 It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases.
 
+
+
+https://github.com/user-attachments/assets/0d759e8a-a444-49ab-b845-e4a6491ce40e
+
+
+
+## Featuring a Dashboard to keep track of all your ports! 
+
+
+https://github.com/user-attachments/assets/dc2699cc-467a-4abf-a762-ec1deef21e3f
+
+## Containerize an enitre Wasm game helping with CI CD pipelines! 
+
+
+https://github.com/user-attachments/assets/e9ad2063-6cc1-43a4-ac03-2d865bf3c105
+
+
+
 ## Requirements
 
 - Go
