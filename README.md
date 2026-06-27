@@ -1,28 +1,37 @@
 # ebitdock
 
-`ebitdock` is a Go-native dev orchestrator for Ebitengine browser games.
 <p align="center">
   <img src="https://github.com/user-attachments/assets/ae9adc1b-b700-4d4b-a323-1cd6fb137cda" width="120" valign="middle">
   <img src="https://github.com/user-attachments/assets/232c0ddf-930e-45f1-be24-e2bb97bc28f2" width="120" valign="middle">
 </p>
 
-It is built around Go, Ebitengine, WebAssembly, wasmserve, and Docker Compose. It gives browser games a repeatable local stack for the web client, WASM build, backend APIs, realtime services, databases, ports, logs, and a dev dashboard.
+Ebitengine is a lightweight way to build games in Go, and its WebAssembly target makes browser games feel natural without pulling in a JavaScript framework.
 
-It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases.
+I built `ebitdock` while experimenting with live-service browser games in Ebitengine. The game loop was the easy part; the surrounding stack was the part that kept growing: WASM builds, static web serving, realtime services, APIs, databases, ports, logs, rebuilds, and deployment shape.
 
+After using `wasmserve` and Docker Compose together, this turned into a small orchestrator for the pieces around an Ebitengine WASM game. I open sourced it because it may help other people building browser games that need more than a single static HTML file.
 
+`ebitdock` is a Go-native dev orchestrator for Ebitengine WASM games. It containerizes the local development stack around your game so the same shape can move toward CI/CD, deployment, backend services, realtime multiplayer, databases, dashboards, and repeatable builds.
+
+It does not generate your web app, hide Ebitengine, require Node.js, or become a game framework. Your project owns the game code, HTML shell, JS bridge, assets, APIs, and databases. `ebitdock` owns the orchestration around them.
 
 https://github.com/user-attachments/assets/0d759e8a-a444-49ab-b845-e4a6491ce40e
 
+## Demo
 
+`ebitdock dev` builds the Ebitengine WASM game, starts the local Docker Compose stack, serves the browser client, and exposes a dashboard for ports, logs, build status, and service health.
 
-## Featuring a Dashboard to keep track of all your ports! 
+The example live-service game runs web, API, realtime, admin, and Postgres services together.
 
+## Dashboard
+
+Keep track of ports, service status, WASM build state, checks, watched files, and logs from one local dashboard.
 
 https://github.com/user-attachments/assets/dc2699cc-467a-4abf-a762-ec1deef21e3f
 
-## Containerize an enitre Wasm game helping with CI CD pipelines! 
+## Containerized WASM Stack
 
+Build the Ebitengine WASM output in a Go container and run the surrounding services through Docker Compose, which makes the development stack easier to reproduce in CI/CD pipelines.
 
 https://github.com/user-attachments/assets/e9ad2063-6cc1-43a4-ac03-2d865bf3c105
 
