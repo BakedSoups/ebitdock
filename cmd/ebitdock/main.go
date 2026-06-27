@@ -16,6 +16,7 @@ import (
 	"ebitdock/internal/dev"
 	dock "ebitdock/internal/docker"
 	"ebitdock/internal/doctor"
+	"ebitdock/internal/install"
 	"ebitdock/internal/process"
 	"ebitdock/internal/templates"
 )
@@ -24,6 +25,7 @@ const usage = `ebitdock manages the web shell around an Ebitengine WASM game.
 
 Usage:
   ebitdock init [name|.]
+  ebitdock install tools
   ebitdock dev
   ebitdock down
   ebitdock wasm
@@ -57,6 +59,11 @@ func run(args []string) error {
 			name = args[1]
 		}
 		return templates.InitProject(name)
+	case "install":
+		if len(args) != 2 || args[1] != "tools" {
+			return errors.New("usage: ebitdock install tools")
+		}
+		return install.Tools(os.Stdout)
 	case "dev":
 		cfg, root, err := loadProject()
 		if err != nil {

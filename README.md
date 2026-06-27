@@ -19,7 +19,7 @@ From this repo:
 
 ```sh
 go install ./cmd/ebitdock
-go install github.com/hajimehoshi/wasmserve@latest
+ebitdock install tools
 ```
 
 Make sure Go's bin directory is on your PATH:
@@ -28,10 +28,13 @@ Make sure Go's bin directory is on your PATH:
 export PATH="$HOME/go/bin:$PATH"
 ```
 
+`ebitdock install tools` installs Go-based helper tools such as `wasmserve`. Docker is installed through your OS or Docker Desktop; `ebitdock doctor` will tell you if Docker or the Compose plugin is missing.
+
 ## Commands
 
 ```sh
 ebitdock init [name|.]
+ebitdock install tools
 ebitdock dev
 ebitdock down
 ebitdock wasm
@@ -58,6 +61,8 @@ Then run:
 ebitdock doctor
 ebitdock dev
 ```
+
+`ebitdock doctor` is the toolchain check. It reports missing Docker, missing `wasmserve`, bad ports, missing game packages, and static root issues before you start a dev session.
 
 To compile only the browser build:
 
