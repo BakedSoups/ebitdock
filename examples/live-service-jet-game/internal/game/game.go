@@ -31,6 +31,9 @@ type Game struct {
 	thrust         bool
 	shoot          bool
 	respawnPending bool
+	localBullets   []shared.BulletState
+	nextBullet     int
+	shootCooldown  int
 }
 
 func New() *Game {
@@ -69,7 +72,7 @@ func (g *Game) Update() error {
 	turn := 0.047 + float64(a.Upgrades.Turn)*0.006
 	g.lastTurn = 0
 	g.thrust = ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
-	g.shoot = ebiten.IsKeyPressed(ebiten.KeySpace)
+	g.shoot = ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		a.Ship.Angle -= turn
 		g.lastTurn = -1
@@ -93,6 +96,7 @@ func (g *Game) Update() error {
 
 	g.collectCrystals()
 	g.buyUpgrades()
+	g.updateLocalBullets()
 	if a.Tick%2 == 0 {
 		g.Net.SendInput(g.playerName, g.respawnPending, g.lastTurn, g.thrust, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle, a.Ship.Points, a.Upgrades.Speed, a.Upgrades.Turn, a.Upgrades.Damage, a.Upgrades.FireRate)
 		g.respawnPending = false
@@ -107,13 +111,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		return
 	}
 	drawCrystals(screen, g.visibleCrystals())
-	drawBullets(screen, g.Net.Bullets())
+	drawBullets(screen, g.visibleBullets())
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
 	drawXPBar(screen, g.Arena.Ship.XP, g.Arena.NextXP(), g.Arena.Ship.Level)
 	drawUpgradeTree(screen, g.Arena.Upgrades, g.Arena.Ship.Points)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("pilot %s  net %s  peers %d", g.playerName, g.Net.Status(), len(g.remoteShips())), 16, 14)
-	ebitenutil.DebugPrintAt(screen, "A/D rotate | W forward | Space shoot | 1 speed 2 turn 3 damage 4 fire", 16, 32)
+	ebitenutil.DebugPrintAt(screen, "A/D rotate | W forward | Space/click shoot | 1 speed 2 turn 3 damage 4 fire", 16, 32)
 	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
 	if g.state == screenDead {
 		drawEndScreen(screen, g.Arena.Ship.Score, g.Arena.Ship.Level)
@@ -174,6 +178,36 @@ func (g *Game) buyUpgrade(name string, level *int) {
 	g.Arena.Ship.Points--
 	*level = *level + 1
 	g.Arena.Message = fmt.Sprintf("%s upgraded to %d", name, *level)
+}
+
+func (g *Game) updateLocalBullets() {
+	if g.shootCooldown > 0 {
+		g.shootCooldown--
+	}
+	if g.shoot && g.shootCooldown == 0 {
+		g.nextBullet++
+		speed := 7.4 + float64(g.Arena.Upgrades.FireRate)*0.35
+		g.localBullets = append(g.localBullets, shared.BulletState{
+			ID:      fmt.Sprintf("local-%d", g.nextBullet),
+			OwnerID: g.Net.PlayerID,
+			X:       g.Arena.Ship.X + math.Cos(g.Arena.Ship.Angle)*20,
+			Y:       g.Arena.Ship.Y + math.Sin(g.Arena.Ship.Angle)*20,
+			VX:      math.Cos(g.Arena.Ship.Angle) * speed,
+			VY:      math.Sin(g.Arena.Ship.Angle) * speed,
+			Damage:  1,
+		})
+		g.shootCooldown = max(6, 20-g.Arena.Upgrades.FireRate*2)
+	}
+	next := g.localBullets[:0]
+	for _, bullet := range g.localBullets {
+		bullet.X += bullet.VX
+		bullet.Y += bullet.VY
+		if bullet.X < -30 || bullet.X > ScreenWidth+30 || bullet.Y < -30 || bullet.Y > ScreenHeight+30 {
+			continue
+		}
+		next = append(next, bullet)
+	}
+	g.localBullets = next
 }
 
 func (g *Game) updateLogin() {
@@ -260,6 +294,16 @@ func (g *Game) visibleCrystals() []shared.Crystal {
 		return crystals
 	}
 	return g.Arena.Crystals
+}
+
+func (g *Game) visibleBullets() []shared.BulletState {
+	server := g.Net.Bullets()
+	if len(server) == 0 {
+		return g.localBullets
+	}
+	out := append([]shared.BulletState(nil), server...)
+	out = append(out, g.localBullets...)
+	return out
 }
 
 func (g *Game) selfStats() string {

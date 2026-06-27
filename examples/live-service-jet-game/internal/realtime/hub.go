@@ -285,6 +285,7 @@ func (h *Hub) spawnBullet(ship shared.ShipState, input protocol.InputMessage) {
 		VY:      math.Sin(ship.Angle) * speed,
 		Damage:  damage,
 	}
+	log.Printf("bullet spawned id=%s owner=%s damage=%d angle=%.2f", id, ship.PlayerID, damage, ship.Angle)
 }
 
 func (h *Hub) stepBullets(dt float64) {

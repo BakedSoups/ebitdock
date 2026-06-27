@@ -28,7 +28,7 @@ type NetClient struct {
 
 func NewNetClient() *NetClient {
 	client := &NetClient{
-		PlayerID: tabPlayerID(),
+		PlayerID: randomPlayerID(),
 		status:   "connecting",
 	}
 	client.connect()
@@ -136,20 +136,6 @@ func (c *NetClient) setStatus(status string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status = status
-}
-
-func tabPlayerID() string {
-	storage := js.Global().Get("sessionStorage")
-	if storage.IsUndefined() || storage.IsNull() {
-		return randomPlayerID()
-	}
-	existing := storage.Call("getItem", "orbitSnakePlayerID")
-	if !existing.IsNull() && existing.String() != "" {
-		return existing.String()
-	}
-	id := randomPlayerID()
-	storage.Call("setItem", "orbitSnakePlayerID", id)
-	return id
 }
 
 func randomPlayerID() string {

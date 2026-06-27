@@ -1,16 +1,16 @@
-# Multiplayer Space Snake Example Plan
+# Live Service Jet Game Example Plan
 
 ## Purpose
 
 This example should show why `ebitdock` is useful for Ebitengine games that are more than a standalone WASM file.
 
-The game should be small enough to build, easy to understand visually, and still require multiple local services. A Diep.io-style spaceship game fits that well: simple 2D movement, clear multiplayer state, pickups, upgrades, persistence, and realtime networking.
+The game should be small enough to build, easy to understand visually, and still require multiple local services. A Diep.io-style spaceship game fits that well: simple 2D movement, pickups, upgrades, persistence, and realtime networking hooks.
 
 ## Working Concept
 
 Working title: `orbit-raiders`
 
-Players control small spaceships in a shared 2D arena. Players collect scrap dots, buy upgrades, aim with the mouse, and shoot other players. Kills increase score and level, making the ship stronger.
+Players control small spaceships in a 2D arena. Players collect dots, buy upgrades, and shoot. The realtime service is part of the stack, but the current game should be treated as a prototype until remote player visibility and server-authoritative combat are solid.
 
 Think:
 
@@ -18,7 +18,7 @@ Think:
 - spaceship theme
 - resource pickups
 - simple upgrades
-- one shared multiplayer arena
+- realtime arena plumbing
 - persistent player progression
 
 ## Why This Is A Good Ebitdock Demo
@@ -510,7 +510,7 @@ The example is successful when:
 
 - `ebitdock dev` starts web, api, realtime, admin, database, and dashboard
 - browser loads the Ebitengine WASM client
-- player can steer a ship and collect scrap or kill players
+- player can steer a ship, collect dots, shoot, and level up
 - player levels up after kills
 - realtime service receives input messages
 - API stores scrap/upgrades
@@ -521,7 +521,7 @@ The example is successful when:
 
 ## Current Gameplay Implementation Checklist
 
-This pass focuses the playable demo around a Diep.io-like run loop.
+This pass focuses the playable demo around a Diep.io-like run loop while keeping realtime multiplayer behavior explicitly experimental.
 
 - Add a login screen before the ship joins the arena.
 - Use keyboard-only flight: `A`/`D` rotate, `W` thrusts forward, `Space` shoots.

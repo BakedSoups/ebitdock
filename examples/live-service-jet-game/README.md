@@ -1,12 +1,12 @@
 # Live Service Jet Game
 
-This example is a compact showcase for `ebitdock`: an Ebitengine WASM game that needs more than a static web folder.
+This example is a compact showcase for `ebitdock`: an Ebitengine WASM game prototype that needs more than a static web folder.
 
 It demonstrates a browser game with a full local service stack:
 
 - Ebitengine game compiled to WASM
 - static web container serving the browser shell
-- realtime WebSocket service for shared arena state
+- realtime WebSocket service for arena-state plumbing
 - API service for player data
 - Postgres database container
 - admin/debug service
@@ -16,7 +16,7 @@ It demonstrates a browser game with a full local service stack:
 
 Most small WASM games can be opened from a static page. Live-service games need more: ports, containers, logs, rebuilds, health checks, backend services, realtime sockets, and persistence.
 
-This project keeps the game code Go-native while letting `ebitdock` orchestrate the development environment around it. Running one command starts the same kind of stack a multiplayer browser game naturally grows into.
+This project keeps the game code Go-native while letting `ebitdock` orchestrate the development environment around it. Running one command starts the same kind of stack a browser game naturally grows into when it adds APIs, persistence, and realtime services.
 
 ## Run It
 
@@ -47,7 +47,7 @@ ebitdock down
 ```text
 web       :8090  static browser client
 api       :3001  player/profile service
-realtime  :3002  WebSocket arena state
+realtime  :3002  WebSocket arena-state prototype
 admin     :9090  local debug/admin service
 database  :5432  Postgres
 dashboard :8091  ebitdock dashboard
@@ -65,7 +65,7 @@ Space    shoot
 R/Enter  respawn after death
 ```
 
-The current game loop includes login, shared pickups, bullets, XP, level points, upgrades, death, and respawn. It is intentionally small, but it exercises the same moving parts that make ebitdock useful for real browser games.
+The current game loop includes login, pickups, visible shooting, XP, level points, upgrades, death, and respawn. The realtime service is present as development plumbing and is still a prototype, so treat this as a live-service stack demo rather than finished multiplayer gameplay.
 
 ## What To Watch In Ebitdock
 
