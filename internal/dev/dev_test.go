@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 func TestIsStaticSourceChangeOnlyMatchesFilesUnderStaticRoot(t *testing.T) {

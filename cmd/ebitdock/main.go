@@ -11,14 +11,14 @@ import (
 	"strings"
 	"syscall"
 
-	"ebitdock/internal/build"
-	"ebitdock/internal/config"
-	"ebitdock/internal/dev"
-	dock "ebitdock/internal/docker"
-	"ebitdock/internal/doctor"
-	"ebitdock/internal/install"
-	"ebitdock/internal/process"
-	"ebitdock/internal/templates"
+	"github.com/BakedSoups/ebitdock/internal/build"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/dev"
+	dock "github.com/BakedSoups/ebitdock/internal/docker"
+	"github.com/BakedSoups/ebitdock/internal/doctor"
+	"github.com/BakedSoups/ebitdock/internal/install"
+	"github.com/BakedSoups/ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/templates"
 )
 
 const usage = `ebitdock manages the web shell around an Ebitengine WASM game.

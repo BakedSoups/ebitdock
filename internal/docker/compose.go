@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 // ComposeFile is the subset of the compose spec that ebitdock writes. Keeping

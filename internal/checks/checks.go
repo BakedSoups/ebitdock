@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/process"
 )
 
 // Result captures the outcome of an optional pre-rebuild command.

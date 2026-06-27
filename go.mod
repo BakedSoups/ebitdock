@@ -1,4 +1,4 @@
-module ebitdock
+module github.com/BakedSoups/ebitdock
 
 go 1.24
 

@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"ebitdock/internal/build"
-	"ebitdock/internal/checks"
-	"ebitdock/internal/cliui"
-	"ebitdock/internal/config"
-	"ebitdock/internal/dashboard"
-	dock "ebitdock/internal/docker"
-	"ebitdock/internal/process"
-	"ebitdock/internal/tools"
-	"ebitdock/internal/watch"
+	"github.com/BakedSoups/ebitdock/internal/build"
+	"github.com/BakedSoups/ebitdock/internal/checks"
+	"github.com/BakedSoups/ebitdock/internal/cliui"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/dashboard"
+	dock "github.com/BakedSoups/ebitdock/internal/docker"
+	"github.com/BakedSoups/ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/tools"
+	"github.com/BakedSoups/ebitdock/internal/watch"
 )
 
 // Run coordinates the local development session: wasmserve, dashboard,

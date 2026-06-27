@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 type PortStatus = config.PortConfig

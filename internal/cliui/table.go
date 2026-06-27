@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 // DevStatus prints the startup service table. tabwriter keeps the output

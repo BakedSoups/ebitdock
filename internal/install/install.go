@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"ebitdock/internal/tools"
+	"github.com/BakedSoups/ebitdock/internal/tools"
 )
 
 // Tools installs Go-based helper tools that ebitdock can manage directly.

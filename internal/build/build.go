@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"ebitdock/internal/config"
-	dock "ebitdock/internal/docker"
-	"ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	dock "github.com/BakedSoups/ebitdock/internal/docker"
+	"github.com/BakedSoups/ebitdock/internal/process"
 )
 
 // Result captures the user-visible outcome of a WASM build.

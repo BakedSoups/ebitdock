@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {

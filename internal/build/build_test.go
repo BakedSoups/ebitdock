@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 func TestDockerBuildCommandUsesGoImageAndProjectMount(t *testing.T) {

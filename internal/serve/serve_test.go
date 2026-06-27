@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/config"
 )
 
 func TestServerServesWASMWithCorrectContentType(t *testing.T) {

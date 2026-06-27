@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ebitdock/internal/config"
-	"ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/process"
 )
 
 // Run starts the configured static web server and prints its URL.

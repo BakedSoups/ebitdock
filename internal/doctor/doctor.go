@@ -10,9 +10,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"ebitdock/internal/config"
-	"ebitdock/internal/docker"
-	"ebitdock/internal/tools"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/docker"
+	"github.com/BakedSoups/ebitdock/internal/tools"
 )
 
 // Run checks the local project and toolchain needed by ebitdock commands.

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"ebitdock/internal/config"
-	"ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/config"
+	"github.com/BakedSoups/ebitdock/internal/process"
 )
 
 //go:embed dashboard.html

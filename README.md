@@ -49,11 +49,10 @@ https://github.com/user-attachments/assets/e9ad2063-6cc1-43a4-ac03-2d865bf3c105
 
 ## Install
 
-From this repo:
+Install the CLI with Go:
 
 ```sh
-go install ./cmd/ebitdock
-ebitdock install tools
+go install github.com/BakedSoups/ebitdock/cmd/ebitdock@latest
 ```
 
 Make sure Go's bin directory is on your PATH:
@@ -62,7 +61,22 @@ Make sure Go's bin directory is on your PATH:
 export PATH="$HOME/go/bin:$PATH"
 ```
 
+Install helper tools and check your machine:
+
+```sh
+ebitdock install tools
+ebitdock doctor
+```
+
 `ebitdock install tools` installs Go-based helper tools such as `wasmserve`. Docker is installed through your OS or Docker Desktop; `ebitdock doctor` will tell you if Docker or the Compose plugin is missing.
+
+For local development of `ebitdock` itself:
+
+```sh
+git clone https://github.com/BakedSoups/ebitdock
+cd ebitdock
+go install ./cmd/ebitdock
+```
 
 ## Commands
 
