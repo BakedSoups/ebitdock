@@ -30,13 +30,13 @@
     pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 12px; line-height: 1.45; max-height: 280px; overflow: auto; }
     ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; }
     .ports { display: grid; gap: 6px; }
-    .port { display: grid; grid-template-columns: minmax(90px, 1fr) 62px; gap: 6px 10px; align-items: baseline; border: 1px solid #29313a; padding: 9px 10px; background: #10151a; }
+    .port { display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, max-content); gap: 6px 10px; align-items: baseline; border: 1px solid #29313a; padding: 9px 10px; background: #10151a; }
     .port strong { font-size: 13px; }
     .port-code { color: #d6dee5; text-align: right; }
     .port a { color: #5fd1c1; text-decoration: none; word-break: break-all; }
     .port a:hover { text-decoration: underline; }
-    .status { appearance: none; border: 0; background: transparent; color: #8fa0ad; text-align: right; font: inherit; padding: 0; cursor: pointer; }
-    .status:hover, .status.active { color: #5fd1c1; text-decoration: underline; }
+    .status { appearance: none; justify-self: end; border: 1px solid #29313a; background: #14191f; color: #8fa0ad; text-align: center; font: inherit; font-size: 12px; line-height: 1.2; padding: 3px 7px; cursor: pointer; max-width: 100%; }
+    .status:hover, .status.active { border-color: #5fd1c1; color: #5fd1c1; }
     .log-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .log-tab { border: 1px solid #29313a; background: #10151a; color: #d6dee5; font: inherit; font-size: 12px; padding: 7px 9px; cursor: pointer; }
     .log-tab.active { border-color: #5fd1c1; color: #5fd1c1; }
