@@ -21,7 +21,7 @@
 
     window.OrbitSnake = {
       ready() {
-        status.textContent = "local arena ready";
+        status.textContent = "client ready";
       },
       log(message) {
         console.log("[orbit-snake]", message);
@@ -30,7 +30,7 @@
 
     async function boot() {
       try {
-        const result = await WebAssembly.instantiateStreaming(fetch("./game.wasm"), go.importObject);
+        const result = await WebAssembly.instantiateStreaming(fetch("./game.wasm", { cache: "no-store" }), go.importObject);
         await go.run(result.instance);
       } catch (err) {
         status.textContent = "wasm failed";

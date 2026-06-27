@@ -16,14 +16,15 @@ import (
 )
 
 type NetClient struct {
-	mu        sync.RWMutex
-	PlayerID  string
-	status    string
-	socket    js.Value
-	ships     []shared.ShipState
-	crystals  []shared.Crystal
-	bullets   []shared.BulletState
-	collected []string
+	mu           sync.RWMutex
+	PlayerID     string
+	status       string
+	socket       js.Value
+	reconnecting bool
+	ships        []shared.ShipState
+	crystals     []shared.Crystal
+	bullets      []shared.BulletState
+	collected    []string
 }
 
 func NewNetClient() *NetClient {
@@ -35,9 +36,9 @@ func NewNetClient() *NetClient {
 	return client
 }
 
-func (c *NetClient) SendInput(playerName string, respawn bool, turn int, thrust, shoot bool, x, y, angle float64, upgradePoints, speedLevel, turnLevel, damageLevel, fireRateLevel int) {
+func (c *NetClient) SendInput(playerName string, respawn bool, turn int, thrust, shoot bool, x, y, angle float64, upgradePoints, speedLevel, turnLevel, damageLevel, fireRateLevel int) bool {
 	if c.socket.IsUndefined() || c.socket.IsNull() || c.socket.Get("readyState").Int() != 1 {
-		return
+		return false
 	}
 	c.mu.Lock()
 	collected := append([]string(nil), c.collected...)
@@ -64,7 +65,9 @@ func (c *NetClient) SendInput(playerName string, respawn bool, turn int, thrust,
 	data, err := json.Marshal(msg)
 	if err == nil {
 		c.socket.Call("send", string(data))
+		return true
 	}
+	return false
 }
 
 func (c *NetClient) QueueCrystalCollection(id string) {
@@ -101,6 +104,7 @@ func (c *NetClient) Status() string {
 }
 
 func (c *NetClient) connect() {
+	c.setStatus("connecting")
 	wsURL := realtimeURL()
 	socket := js.Global().Get("WebSocket").New(wsURL)
 	c.socket = socket
@@ -109,11 +113,11 @@ func (c *NetClient) connect() {
 		return nil
 	}))
 	socket.Set("onclose", js.FuncOf(func(js.Value, []js.Value) any {
-		c.setStatus("closed")
+		c.scheduleReconnect("closed")
 		return nil
 	}))
 	socket.Set("onerror", js.FuncOf(func(js.Value, []js.Value) any {
-		c.setStatus("error")
+		c.scheduleReconnect("error")
 		return nil
 	}))
 	socket.Set("onmessage", js.FuncOf(func(_ js.Value, args []js.Value) any {
@@ -132,6 +136,29 @@ func (c *NetClient) connect() {
 	}))
 }
 
+func (c *NetClient) scheduleReconnect(status string) {
+	c.mu.Lock()
+	if c.reconnecting {
+		c.status = status + ", retrying"
+		c.mu.Unlock()
+		return
+	}
+	c.reconnecting = true
+	c.status = status + ", retrying"
+	c.mu.Unlock()
+
+	var timer js.Func
+	timer = js.FuncOf(func(js.Value, []js.Value) any {
+		timer.Release()
+		c.mu.Lock()
+		c.reconnecting = false
+		c.mu.Unlock()
+		c.connect()
+		return nil
+	})
+	js.Global().Call("setTimeout", timer, 750)
+}
+
 func (c *NetClient) setStatus(status string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -139,8 +166,14 @@ func (c *NetClient) setStatus(status string) {
 }
 
 func randomPlayerID() string {
+	crypto := js.Global().Get("crypto")
+	if !crypto.IsUndefined() && !crypto.IsNull() {
+		values := js.Global().Get("Uint32Array").New(2)
+		crypto.Call("getRandomValues", values)
+		return fmt.Sprintf("p-%08x%08x", values.Index(0).Int(), values.Index(1).Int())
+	}
 	rand.Seed(time.Now().UnixNano())
-	return fmt.Sprintf("p-%06x", rand.Intn(0xffffff))
+	return fmt.Sprintf("p-%06x-%d", rand.Intn(0xffffff), time.Now().UnixNano())
 }
 
 func realtimeURL() string {

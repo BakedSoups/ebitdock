@@ -56,15 +56,13 @@ func (g *Game) Update() error {
 		return nil
 	case screenDead:
 		if inpututil.IsKeyJustPressed(ebiten.KeyR) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			a.Reset()
-			g.respawnPending = true
-			g.state = screenPlaying
+			g.respawn()
 		}
 		return nil
 	}
 
 	g.syncSelfFromServer()
-	if !a.Ship.Alive {
+	if !a.Ship.Alive && !g.respawnPending {
 		g.state = screenDead
 		return nil
 	}
@@ -99,7 +97,6 @@ func (g *Game) Update() error {
 	g.updateLocalBullets()
 	if a.Tick%2 == 0 {
 		g.Net.SendInput(g.playerName, g.respawnPending, g.lastTurn, g.thrust, g.shoot, a.Ship.X, a.Ship.Y, a.Ship.Angle, a.Ship.Points, a.Upgrades.Speed, a.Upgrades.Turn, a.Upgrades.Damage, a.Upgrades.FireRate)
-		g.respawnPending = false
 	}
 	return nil
 }
@@ -114,9 +111,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	drawBullets(screen, g.visibleBullets())
 	drawRemoteShips(screen, g.remoteShips())
 	drawShip(screen, g.Arena.Ship)
+	drawHealthBar(screen, g.Arena.Ship.X-22, g.Arena.Ship.Y-31, g.Arena.Ship.HP, g.Arena.Ship.MaxHP)
 	drawXPBar(screen, g.Arena.Ship.XP, g.Arena.NextXP(), g.Arena.Ship.Level)
 	drawUpgradeTree(screen, g.Arena.Upgrades, g.Arena.Ship.Points)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("pilot %s  net %s  peers %d", g.playerName, g.Net.Status(), len(g.remoteShips())), 16, 14)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("pilot %s  %s  net %s  peers %d", g.playerName, g.selfStats(), g.Net.Status(), len(g.remoteShips())), 16, 14)
 	ebitenutil.DebugPrintAt(screen, "A/D rotate | W forward | Space/click shoot | 1 speed 2 turn 3 damage 4 fire", 16, 32)
 	ebitenutil.DebugPrintAt(screen, g.Arena.Message, 16, 68)
 	if g.state == screenDead {
@@ -224,9 +222,17 @@ func (g *Game) updateLogin() {
 		if g.playerName == "" {
 			g.playerName = "pilot"
 		}
-		g.respawnPending = true
-		g.state = screenPlaying
+		g.respawn()
 	}
+}
+
+func (g *Game) respawn() {
+	g.Arena.Reset()
+	g.localBullets = nil
+	g.shootCooldown = 0
+	g.respawnPending = true
+	g.state = screenPlaying
+	g.Net.SendInput(g.playerName, true, 0, false, false, g.Arena.Ship.X, g.Arena.Ship.Y, g.Arena.Ship.Angle, 0, 0, 0, 0, 0)
 }
 
 func (g *Game) addXP(amount int) {
@@ -249,6 +255,11 @@ func (g *Game) syncSelfFromServer() {
 		g.Arena.Ship.Level = ship.Level
 		g.Arena.Ship.XP = ship.XP
 		g.Arena.Ship.Points = ship.UpgradePoints
+		g.Arena.Ship.HP = ship.HP
+		g.Arena.Ship.MaxHP = ship.MaxHP
+		if ship.Alive {
+			g.respawnPending = false
+		}
 		return
 	}
 }
@@ -312,5 +323,5 @@ func (g *Game) selfStats() string {
 			return fmt.Sprintf("hp %d/%d lvl %d kills %d", ship.HP, ship.MaxHP, ship.Level, ship.Score)
 		}
 	}
-	return "waiting"
+	return fmt.Sprintf("hp %d/%d lvl %d kills %d", g.Arena.Ship.HP, g.Arena.Ship.MaxHP, g.Arena.Ship.Level, g.Arena.Ship.Score)
 }

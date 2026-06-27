@@ -25,6 +25,8 @@ type Ship struct {
 	Y      float64
 	Angle  float64
 	Speed  float64
+	HP     int
+	MaxHP  int
 	Score  int
 	Scrap  int
 	XP     int
@@ -49,6 +51,8 @@ func NewArena() *Arena {
 			Y:     ScreenHeight / 2,
 			Angle: -math.Pi / 2,
 			Speed: 2.2,
+			HP:    100,
+			MaxHP: 100,
 			Level: 0,
 			Alive: true,
 			Color: color.RGBA{R: 75, G: 217, B: 206, A: 255},
@@ -75,6 +79,8 @@ func (a *Arena) Reset() {
 		Y:     ScreenHeight / 2,
 		Angle: -math.Pi / 2,
 		Speed: 2.2,
+		HP:    100,
+		MaxHP: 100,
 		Alive: true,
 		Level: 0,
 		Color: color.RGBA{R: 75, G: 217, B: 206, A: 255},
