@@ -18,6 +18,7 @@ import (
 	"github.com/BakedSoups/ebitdock/internal/dashboard"
 	dock "github.com/BakedSoups/ebitdock/internal/docker"
 	"github.com/BakedSoups/ebitdock/internal/process"
+	"github.com/BakedSoups/ebitdock/internal/tools"
 	"github.com/BakedSoups/ebitdock/internal/watch"
 )
 
@@ -34,33 +35,57 @@ func runDocker(ctx context.Context, root string, cfg config.Config, status *proc
 	if err := dock.RequireDocker(nil); err != nil {
 		return err
 	}
+	var wasmserve *process.Command
+	if cfg.WASMDevServer() == "wasmserve" {
+		cmd, err := startWasmserve(ctx, root, cfg, status)
+		if err != nil {
+			return err
+		}
+		wasmserve = cmd
+		defer wasmserve.Stop()
+	}
 	composePath, err := dock.WriteCompose(root, cfg)
 	if err != nil {
 		return err
 	}
 	status.AppendLog("wrote compose file: " + composePath)
 
-	if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
-		return err
+	if cfg.WASMDevServer() != "wasmserve" {
+		if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
+			return err
+		}
+	} else {
+		status.SetBuild("wasmserve", "", nil)
+		status.AppendLog("wasmserve owns WASM rebuilds")
+		for _, hint := range tools.BrowserShellHints(root, cfg.StaticRoot()) {
+			status.AppendLog("dev hint: " + hint)
+			fmt.Fprintln(os.Stdout, "warn\t"+hint)
+		}
 	}
 
-	name, args, err := dock.ComposeCommand(cfg.ComposeFile(), "up", "--build", "--remove-orphans")
-	if err != nil {
-		return err
+	var stack *process.Command
+	if len(cfg.EnabledServices()) > 0 {
+		name, args, err := dock.ComposeCommand(cfg.ComposeFile(), "up", "--build", "--remove-orphans")
+		if err != nil {
+			return err
+		}
+
+		var setBackend func(string)
+		if cfg.APIEnabled() {
+			setBackend = status.SetServer
+		}
+		stack, err = process.StartArgs(ctx, root, name, args, "docker", status, setBackend)
+		if err != nil {
+			return err
+		}
+		status.SetServices("running")
 	}
-	var setBackend func(string)
-	if cfg.APIEnabled() {
-		setBackend = status.SetServer
-	}
-	stack, err := process.StartArgs(ctx, root, name, args, "docker", status, setBackend)
-	if err != nil {
-		return err
-	}
-	status.SetServices("running")
 	defer func() {
-		stack.Stop()
-		status.SetServices("stopped")
-		dockerComposeDown(root, cfg, status)
+		if stack != nil {
+			stack.Stop()
+			status.SetServices("stopped")
+			dockerComposeDown(root, cfg, status)
+		}
 	}()
 
 	var wg sync.WaitGroup
@@ -77,14 +102,23 @@ func runDocker(ctx context.Context, root string, cfg config.Config, status *proc
 	if err != nil {
 		return err
 	}
-	cliui.DevStatus(os.Stdout, cfg, "docker")
+	webService := "docker"
+	if cfg.WASMDevServer() == "wasmserve" {
+		webService = "wasmserve"
+	}
+	cliui.DevStatus(os.Stdout, cfg, webService)
 
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
 			return nil
-		case err := <-stack.Done():
+		case err := <-commandDone(stack):
+			if err != nil {
+				return err
+			}
+			return nil
+		case err := <-commandDone(wasmserve):
 			if err != nil {
 				return err
 			}
@@ -106,11 +140,49 @@ func runDocker(ctx context.Context, root string, cfg config.Config, status *proc
 				status.AppendLog("static file changed")
 				continue
 			}
-			if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
-				continue
+			if cfg.WASMDevServer() == "wasmserve" {
+				status.AppendLog("source file changed; notifying wasmserve")
+				if err := tools.NotifyWasmserve(ctx, cfg.WebPort()); err != nil {
+					status.AppendLog("wasmserve notify failed: " + err.Error())
+					fmt.Fprintln(os.Stdout, "notify\tfailed\t"+err.Error())
+				} else {
+					status.AppendLog("wasmserve notified")
+					fmt.Fprintln(os.Stdout, "notify\tok")
+				}
+			} else {
+				if err := checkedBuild(ctx, root, cfg, status, os.Stdout); err != nil {
+					continue
+				}
 			}
 		}
 	}
+}
+
+func startWasmserve(ctx context.Context, root string, cfg config.Config, status *process.Status) (*process.Command, error) {
+	if err := tools.CheckWasmserve(nil); err != nil {
+		return nil, err
+	}
+	dir, target, err := wasmserveWorkingDirAndTarget(root, cfg)
+	if err != nil {
+		return nil, err
+	}
+	name, args, err := tools.WasmserveCommand(cfg.WebPort(), target)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := process.StartArgs(ctx, dir, name, args, "wasmserve", status, nil)
+	if err != nil {
+		return nil, err
+	}
+	status.AppendLog("wasmserve started")
+	return cmd, nil
+}
+
+func commandDone(cmd *process.Command) <-chan error {
+	if cmd == nil {
+		return nil
+	}
+	return cmd.Done()
 }
 
 func dockerComposeDown(root string, cfg config.Config, status *process.Status) {
@@ -199,6 +271,45 @@ func isStaticSourceChange(root string, cfg config.Config, path string) bool {
 		return false
 	}
 	return containsPath(root, cfg.StaticRoot(), abs)
+}
+
+func wasmserveWorkingDirAndTarget(root string, cfg config.Config) (dir, target string, err error) {
+	staticDir, err := filepath.Abs(filepath.Join(root, cfg.StaticRoot()))
+	if err != nil {
+		return "", "", err
+	}
+	if info, err := os.Stat(staticDir); err != nil {
+		if os.IsNotExist(err) {
+			return "", "", fmt.Errorf("services.web.root %q does not exist\nresolved path: %s\ncreate it or update services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
+		}
+		return "", "", fmt.Errorf("check services.web.root %q at %s: %w", cfg.StaticRoot(), staticDir, err)
+	} else if !info.IsDir() {
+		return "", "", fmt.Errorf("services.web.root %q is not a directory\nresolved path: %s\nupdate services.web.root in ebitdock.yaml", cfg.StaticRoot(), staticDir)
+	}
+
+	if !isLocalPackage(cfg.Game.Package) {
+		return staticDir, cfg.Game.Package, nil
+	}
+	gameDir, err := filepath.Abs(filepath.Join(root, cfg.Game.Package))
+	if err != nil {
+		return "", "", err
+	}
+	rel, err := filepath.Rel(staticDir, gameDir)
+	if err != nil {
+		return "", "", err
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." {
+		return staticDir, ".", nil
+	}
+	if !strings.HasPrefix(rel, ".") {
+		rel = "./" + rel
+	}
+	return staticDir, rel, nil
+}
+
+func isLocalPackage(pkg string) bool {
+	return pkg == "." || strings.HasPrefix(pkg, "./") || strings.HasPrefix(pkg, "../") || filepath.IsAbs(pkg)
 }
 
 // containsPath is a path-containment check based on filepath.Rel, avoiding

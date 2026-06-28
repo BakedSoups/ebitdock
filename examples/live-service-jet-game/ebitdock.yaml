@@ -6,6 +6,7 @@ game:
 
 wasm:
   exec: ./static/wasm_exec.js
+  dev_server: docker
   build_flags:
     - -buildvcs=false
 

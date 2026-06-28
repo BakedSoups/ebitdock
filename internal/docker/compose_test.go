@@ -15,6 +15,7 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 	cfg := config.Config{
 		Project: "demo",
 		Docker:  config.DockerConfig{},
+		WASM:    config.WASMConfig{DevServer: "docker"},
 		Services: config.ServicesConfig{
 			Web: config.ServiceConfig{
 				Root:    "./static",
@@ -56,7 +57,7 @@ func TestGenerateComposeIncludesWebAndEnabledAPI(t *testing.T) {
 }
 
 func TestGenerateComposeSkipsDisabledAPI(t *testing.T) {
-	cfg := config.Config{Project: "demo"}
+	cfg := config.Config{Project: "demo", WASM: config.WASMConfig{DevServer: "docker"}}
 	cfg.SetDefaults()
 
 	compose := GenerateCompose(cfg)
@@ -71,6 +72,7 @@ func TestGenerateComposeSkipsDisabledAPI(t *testing.T) {
 func TestGenerateComposeIncludesGenericServices(t *testing.T) {
 	cfg := config.Config{
 		Project: "demo",
+		WASM:    config.WASMConfig{DevServer: "docker"},
 		Services: config.ServicesConfig{
 			Extra: map[string]config.ServiceConfig{
 				"realtime": {
@@ -107,6 +109,7 @@ func TestGenerateComposeIncludesGenericServices(t *testing.T) {
 func TestGenerateComposeDeclaresNamedVolumes(t *testing.T) {
 	cfg := config.Config{
 		Project: "demo",
+		WASM:    config.WASMConfig{DevServer: "docker"},
 		Services: config.ServicesConfig{
 			Extra: map[string]config.ServiceConfig{
 				"database": {
@@ -135,6 +138,7 @@ func TestWriteComposeCreatesConfiguredFile(t *testing.T) {
 	cfg := config.Config{
 		Project: "demo",
 		Docker:  config.DockerConfig{ComposeFile: ".ebitdock/compose.yaml"},
+		WASM:    config.WASMConfig{DevServer: "docker"},
 	}
 	cfg.SetDefaults()
 

@@ -46,6 +46,7 @@ type WebConfig struct {
 type WASMConfig struct {
 	Exec       string   `yaml:"exec"`
 	BuildFlags []string `yaml:"build_flags"`
+	DevServer  string   `yaml:"dev_server"`
 }
 
 // DockerConfig controls how ebitdock generates and runs docker compose files.
@@ -207,6 +208,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.WASM.BuildFlags == nil {
 		c.WASM.BuildFlags = []string{"-buildvcs=false"}
+	}
+	if strings.TrimSpace(c.WASM.DevServer) == "" {
+		c.WASM.DevServer = "wasmserve"
 	}
 	if c.Docker.ComposeFile == "" {
 		c.Docker.ComposeFile = ".ebitdock/compose.yaml"
@@ -372,6 +376,11 @@ func (c Config) WASMBuildFlags() []string {
 	return append([]string(nil), c.WASM.BuildFlags...)
 }
 
+// WASMDevServer returns the browser-facing WASM dev server mode.
+func (c Config) WASMDevServer() string {
+	return strings.ToLower(strings.TrimSpace(c.WASM.DevServer))
+}
+
 // StaticRoot returns the directory served as the browser app.
 func (c Config) StaticRoot() string {
 	return c.Services.Web.Root
@@ -435,10 +444,10 @@ func (c Config) NamedServices() map[string]ServiceConfig {
 }
 
 // EnabledServices returns services that should be included in Docker Compose.
-// The web service is always included because it is the browser entrypoint.
 func (c Config) EnabledServices() map[string]ServiceConfig {
-	services := map[string]ServiceConfig{
-		"web": c.Services.Web,
+	services := map[string]ServiceConfig{}
+	if c.WASMDevServer() != "wasmserve" {
+		services["web"] = c.Services.Web
 	}
 	if c.APIEnabled() {
 		services["api"] = c.Services.API

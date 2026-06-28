@@ -12,6 +12,7 @@ import (
 
 	"github.com/BakedSoups/ebitdock/internal/config"
 	"github.com/BakedSoups/ebitdock/internal/docker"
+	"github.com/BakedSoups/ebitdock/internal/tools"
 )
 
 // Run checks the local project and toolchain needed by ebitdock commands.
@@ -43,6 +44,15 @@ func Run(w io.Writer, root string) error {
 	}
 	fmt.Fprintf(tw, "compose\tok\t%s\n", cfg.ComposeFile())
 
+	if cfg.WASMDevServer() == "wasmserve" {
+		if path, err := exec.LookPath("wasmserve"); err != nil {
+			fmt.Fprintf(tw, "wasmserve\tfailed\tinstall with: %s\n", tools.WasmserveInstallCommand)
+			hasProblems = true
+		} else {
+			fmt.Fprintf(tw, "wasmserve\tok\t%s\n", path)
+		}
+	}
+
 	if detail, ok := packageDetail(root, cfg.Game.Package); !ok {
 		fmt.Fprintf(tw, "game\tfailed\t%s\n", detail)
 		hasProblems = true
@@ -56,7 +66,17 @@ func Run(w io.Writer, root string) error {
 	} else {
 		fmt.Fprintf(tw, "web\twarn\t%s does not exist at %s\n", cfg.StaticRoot(), staticPath)
 	}
-	fmt.Fprintln(tw, "shell\tok\tserved by Docker Compose web service")
+	if cfg.WASMDevServer() == "wasmserve" {
+		if hints := tools.BrowserShellHints(root, cfg.StaticRoot()); len(hints) == 0 {
+			fmt.Fprintln(tw, "shell\tok\twasmserve dev hooks")
+		} else {
+			for _, hint := range hints {
+				fmt.Fprintf(tw, "shell\twarn\t%s\n", hint)
+			}
+		}
+	} else {
+		fmt.Fprintln(tw, "shell\tok\tserved by Docker Compose web service")
+	}
 
 	fmt.Fprintf(tw, "dashboard\tok\t:%d\n", cfg.DashboardPort())
 	if cfg.APIEnabled() {

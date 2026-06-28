@@ -20,6 +20,9 @@ func TestDefaults(t *testing.T) {
 		t.Fatalf("defaults were not populated: %+v", cfg)
 	}
 	assertStrings(t, cfg.WASMBuildFlags(), []string{"-buildvcs=false"})
+	if cfg.WASMDevServer() != "wasmserve" {
+		t.Fatalf("WASMDevServer() = %q, want wasmserve", cfg.WASMDevServer())
+	}
 	if cfg.ComposeFile() != ".ebitdock/compose.yaml" {
 		t.Fatalf("ComposeFile() = %q, want .ebitdock/compose.yaml", cfg.ComposeFile())
 	}
@@ -28,6 +31,22 @@ func TestDefaults(t *testing.T) {
 	}
 	if cfg.Services.Web.Image != "nginx:1.27-alpine" {
 		t.Fatalf("web image = %q, want nginx:1.27-alpine", cfg.Services.Web.Image)
+	}
+}
+
+func TestEnabledServicesSkipsWebWhenWasmserveOwnsDevServer(t *testing.T) {
+	cfg := Config{Project: "demo"}
+	cfg.SetDefaults()
+	if _, ok := cfg.EnabledServices()["web"]; ok {
+		t.Fatal("web service should not be in compose when wasmserve owns the dev server")
+	}
+}
+
+func TestEnabledServicesIncludesWebForDockerDevServer(t *testing.T) {
+	cfg := Config{Project: "demo", WASM: WASMConfig{DevServer: "docker"}}
+	cfg.SetDefaults()
+	if _, ok := cfg.EnabledServices()["web"]; !ok {
+		t.Fatal("web service should be in compose when wasm.dev_server is docker")
 	}
 }
 
