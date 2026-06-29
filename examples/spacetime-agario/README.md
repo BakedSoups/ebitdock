@@ -1,6 +1,10 @@
 # Spacetime Agario
 
 This example is a small Agar.io-style Ebitengine WASM game wired for SpacetimeDB.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1cf0453b-89e7-4a93-a755-8f4add089698" width="350" valign="middle">
+  <img src="https://github.com/user-attachments/assets/ea0b8d0a-6983-44b1-ad95-e2c660c51728" width="350" valign="middle">
+</p>
 
 Development on this example is paused for now. The checked-in code is a scaffold that shows the intended stack shape, not a finished multiplayer demo.
 
