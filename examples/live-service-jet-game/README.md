@@ -2,6 +2,12 @@
 
 This example is a multiplayer space-snake / jet arena prototype. It is a compact showcase for `ebitdock`: an Ebitengine WASM game that needs more than a static web folder.
 
+
+https://github.com/user-attachments/assets/b536490b-677a-4d7f-af8d-a6488d756cda
+
+
+
+
 ## Tech Stack
 
 - `Ebitengine`: renders the browser game from Go.
@@ -14,10 +20,7 @@ This example is a multiplayer space-snake / jet arena prototype. It is a compact
 - `Go admin service`: local debug/admin surface for the stack.
 - `Docker Compose`: runs the app services as containers from `.ebitdock/compose.yaml`.
 - `ebitdock dashboard`: shows ports, build state, service logs, watched files, and errors.
-
-## Why This Is A Good Ebitdock Demo
-
-Most small WASM games can be opened from a static page. Live-service games need more: ports, containers, logs, rebuilds, health checks, backend services, realtime sockets, and persistence.
+--- 
 
 This project keeps the game code Go-native while letting `ebitdock` orchestrate the development environment around it. Running one command starts the same kind of stack a browser game naturally grows into when it adds APIs, persistence, and realtime services.
 
