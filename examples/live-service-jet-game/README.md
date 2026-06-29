@@ -5,7 +5,10 @@ This example is a multiplayer space-snake / jet arena prototype. It is a compact
 
 https://github.com/user-attachments/assets/b536490b-677a-4d7f-af8d-a6488d756cda
 
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/232c0ddf-930e-45f1-be24-e2bb97bc28f2" width="130" valign="middle">
+  <img src="https://github.com/user-attachments/assets/1cf0453b-89e7-4a93-a755-8f4add089698" width="350" valign="middle">
+</p>
 
 
 ## Tech Stack
