@@ -1,0 +1,41 @@
+project: spacetime-agario
+
+game:
+  package: ./cmd/game
+  output: ./static/game.wasm
+
+wasm:
+  exec: ./static/wasm_exec.js
+  dev_server: wasmserve
+  build_flags:
+    - -buildvcs=false
+
+docker:
+  compose_file: ./.ebitdock/compose.yaml
+  go_image: golang:1.24
+
+checks:
+  before_rebuild:
+    enabled: false
+    command: go test ./...
+
+services:
+  web:
+    root: ./static
+    port: 8080
+    image: nginx:1.27-alpine
+    workdir: /usr/share/nginx/html
+    volumes:
+      - ./static:/usr/share/nginx/html:ro
+
+dashboard:
+  port: 8081
+
+watch:
+  rebuild:
+    - ./cmd/**/*.go
+    - ./internal/**/*.go
+  static:
+    - ./static/**
+    - ./web/src/**
+    - ./spacetimedb/**

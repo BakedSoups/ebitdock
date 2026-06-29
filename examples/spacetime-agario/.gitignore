@@ -1,0 +1,7 @@
+.ebitdock/
+node_modules/
+package-lock.json
+static/game.wasm
+static/wasm_exec.js
+web/src/spacetimedb-bindings/
+spacetimedb/agario/target/

@@ -1,0 +1,15 @@
+{
+  "name": "spacetime-agario-example",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "generate:spacetime": "cd spacetimedb && PATH=\"$HOME/.cargo/bin:$PATH\" spacetime generate --lang typescript --module-path agario --out-dir ../web/src/spacetimedb-bindings -y",
+    "build:bridge": "esbuild web/src/agario-spacetime.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=static/js/agario-spacetime.js",
+    "build:spacetime": "npm run generate:spacetime && npm run build:bridge"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "spacetimedb": "^2.6.0"
+  }
+}

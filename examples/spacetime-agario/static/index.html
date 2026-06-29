@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>spacetime agario</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <strong>spacetime-agario</strong>
+      <span id="status">loading wasm</span>
+    </div>
+    <canvas id="game"></canvas>
+  </main>
+  <script src="./config.js"></script>
+  <script src="./js/agario-spacetime.js"></script>
+  <script src="./wasm_exec.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    const go = new Go();
+
+    window.SpacetimeAgarioShell = {
+      ready() {
+        status.textContent = "client ready";
+      },
+      log(message) {
+        console.log("[spacetime-agario]", message);
+      }
+    };
+
+    async function boot() {
+      try {
+        const result = await WebAssembly.instantiateStreaming(fetch("./main.wasm", { cache: "no-store" }), go.importObject);
+        await go.run(result.instance);
+      } catch (err) {
+        status.textContent = "wasm failed";
+        console.error(err);
+      }
+    }
+
+    async function waitForReload() {
+      try {
+        await fetch("/_wait", { cache: "no-store" });
+        window.location.reload();
+      } catch (_) {
+        window.setTimeout(waitForReload, 1000);
+      }
+    }
+
+    boot();
+    waitForReload();
+  </script>
+</body>
+</html>
